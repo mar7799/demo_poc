@@ -529,7 +529,7 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
                 },
             },
             config: {
-                responseModalities: [Modality.AUDIO],
+                responseModalities: [Modality.TEXT],
                 proactivity: { proactiveAudio: true },
                 outputAudioTranscription: {},
                 tools: enabledTools,
