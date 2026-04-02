@@ -46,6 +46,29 @@ module.exports.formatSpeakerResults = formatSpeakerResults;
 let systemAudioProc = null;
 let messageBuffer = '';
 
+// Silence-based early trigger: fire Groq as soon as user stops speaking,
+// without waiting for Gemini to finish generating its audio response.
+let transcriptionSilenceTimer = null;
+const SILENCE_THRESHOLD_MS = 700; // ms of silence after last transcription chunk before triggering
+
+function scheduleGroqTrigger() {
+    if (transcriptionSilenceTimer) {
+        clearTimeout(transcriptionSilenceTimer);
+    }
+    transcriptionSilenceTimer = setTimeout(() => {
+        transcriptionSilenceTimer = null;
+        if (currentTranscription.trim() !== '') {
+            sendToRenderer('new-response', '...');
+            if (hasGroqKey()) {
+                sendToGroq(currentTranscription);
+            } else {
+                sendToGemma(currentTranscription);
+            }
+            currentTranscription = '';
+        }
+    }, SILENCE_THRESHOLD_MS);
+}
+
 
 // Reconnection variables
 let isUserClosing = false;
@@ -476,12 +499,16 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
                     console.log('----------------', message);
 
                     // Handle input transcription (what was spoken)
+                    // Each chunk resets the silence timer — Groq fires ~700ms after user stops speaking,
+                    // long before Gemini finishes generating its audio response.
                     if (message.serverContent?.inputTranscription?.results) {
                         currentTranscription += formatSpeakerResults(message.serverContent.inputTranscription.results);
+                        scheduleGroqTrigger();
                     } else if (message.serverContent?.inputTranscription?.text) {
                         const text = message.serverContent.inputTranscription.text;
                         if (text.trim() !== '') {
                             currentTranscription += text;
+                            scheduleGroqTrigger();
                         }
                     }
 
@@ -494,8 +521,13 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
 
                     if (message.serverContent?.turnComplete) {
                         sendToRenderer('update-status', 'Listening...');
+                        // Cancel any pending silence timer — turnComplete is the definitive end of turn
+                        if (transcriptionSilenceTimer) {
+                            clearTimeout(transcriptionSilenceTimer);
+                            transcriptionSilenceTimer = null;
+                        }
+                        // Fallback: if silence timer didn't already fire (e.g. no transcription events came through)
                         if (currentTranscription.trim() !== '') {
-                            // Show placeholder immediately so user sees feedback right away
                             sendToRenderer('new-response', '...');
                             if (hasGroqKey()) {
                                 sendToGroq(currentTranscription);
@@ -529,7 +561,7 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
                 },
             },
             config: {
-                responseModalities: [Modality.TEXT],
+                responseModalities: [Modality.AUDIO],
                 proactivity: { proactiveAudio: true },
                 outputAudioTranscription: {},
                 tools: enabledTools,
