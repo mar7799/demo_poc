@@ -261,16 +261,25 @@ async function cleanTranscription(rawText) {
                 messages: [
                     {
                         role: 'system',
-                        content: `You process raw speech-to-text from a live job interview. The input may have transcription errors, cut-off words, or noise.
+                        content: `You process raw speech-to-text from a live job interview. The input may have transcription errors, cut-off words, mid-sentence pauses, or background noise.
 
 Return ONLY a valid JSON object — no extra text, no markdown:
 {"cleaned": "the intended question clearly rephrased", "confidence": 0.0, "assumption": "what you assumed, or null"}
 
 Rules:
-- cleaned: the full, clear question the interviewer meant to ask
+- cleaned: the full, clear question the interviewer intended to ask
 - confidence: 0.0 (completely unclear) to 1.0 (crystal clear)
 - assumption: brief note on what you inferred if confidence < 0.8, otherwise null
-- If input is already clear, just clean up transcription errors and return confidence 1.0`,
+- If input is already clear, just fix transcription errors and return confidence 1.0
+
+Score confidence LOW (< 0.5) — do NOT attempt an answer — if:
+- Input is a sentence fragment or mid-thought ("so what about the... um")
+- Question is clearly cut off before the actual ask
+- No identifiable question or topic present
+- Input is noise, filler, or fewer than 5 meaningful words
+
+Score confidence MEDIUM (0.5-0.79) if topic is clear but phrasing is garbled or you made a significant inference.
+Score confidence HIGH (0.8-1.0) only when the question is complete and unambiguous.`,
                     },
                     { role: 'user', content: rawText },
                 ],
