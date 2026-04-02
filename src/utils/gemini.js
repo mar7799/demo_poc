@@ -241,6 +241,61 @@ function hasGroqKey() {
     return key && key.trim() != ''
 }
 
+// Pre-process noisy speech-to-text transcription before sending to the answer model.
+// Uses llama-3.1-8b-instant (fast, cheap) to infer intent and score confidence.
+// Returns { cleaned, confidence, assumption }
+// confidence: 0.8+ → answer normally | 0.5-0.79 → answer with note | <0.5 → ask to repeat
+async function cleanTranscription(rawText) {
+    const groqApiKey = getGroqApiKey();
+    if (!groqApiKey) return { cleaned: rawText, confidence: 0.9, assumption: null };
+
+    try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${groqApiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'llama-3.1-8b-instant',
+                messages: [
+                    {
+                        role: 'system',
+                        content: `You process raw speech-to-text from a live job interview. The input may have transcription errors, cut-off words, or noise.
+
+Return ONLY a valid JSON object — no extra text, no markdown:
+{"cleaned": "the intended question clearly rephrased", "confidence": 0.0, "assumption": "what you assumed, or null"}
+
+Rules:
+- cleaned: the full, clear question the interviewer meant to ask
+- confidence: 0.0 (completely unclear) to 1.0 (crystal clear)
+- assumption: brief note on what you inferred if confidence < 0.8, otherwise null
+- If input is already clear, just clean up transcription errors and return confidence 1.0`,
+                    },
+                    { role: 'user', content: rawText },
+                ],
+                max_tokens: 150,
+                temperature: 0.1,
+                stream: false,
+            }),
+        });
+
+        if (!response.ok) return { cleaned: rawText, confidence: 0.9, assumption: null };
+
+        const json = await response.json();
+        const content = json.choices?.[0]?.message?.content?.trim() || '';
+        const result = JSON.parse(content);
+        return {
+            cleaned: result.cleaned || rawText,
+            confidence: typeof result.confidence === 'number' ? result.confidence : 0.9,
+            assumption: result.assumption || null,
+        };
+    } catch (e) {
+        // On any error, pass through raw text
+        return { cleaned: rawText, confidence: 0.9, assumption: null };
+    }
+}
+
 function trimConversationHistoryForGemma(history, maxChars=42000) {
     if(!history || history.length === 0) return [];
     let totalChars = 0;
@@ -273,6 +328,22 @@ async function sendToGroq(transcription) {
         return;
     }
 
+    // Clean noisy speech-to-text before sending to the answer model
+    const { cleaned, confidence, assumption } = await cleanTranscription(transcription);
+    console.log(`Transcription confidence: ${confidence} | cleaned: "${cleaned.substring(0, 80)}"`);
+
+    if (confidence < 0.5) {
+        // Too unclear to guess — ask user to repeat
+        const partial = cleaned.substring(0, 60);
+        sendToRenderer('update-response', `Sorry, I only caught part of that — "${partial}…" — could you repeat the question?`);
+        sendToRenderer('update-status', 'Listening...');
+        return;
+    }
+
+    // Use cleaned transcription; if partially confident, prepend assumption note
+    const questionToAnswer = cleaned;
+    const assumptionPrefix = (confidence < 0.8 && assumption) ? `*(Taking that as: "${assumption}")*\n\n` : '';
+
     const modelToUse = getModelForToday();
     if (!modelToUse) {
         console.log('All Groq daily limits exhausted');
@@ -280,11 +351,11 @@ async function sendToGroq(transcription) {
         return;
     }
 
-    console.log(`Sending to Groq (${modelToUse}):`, transcription.substring(0, 100) + '...');
+    console.log(`Sending to Groq (${modelToUse}):`, questionToAnswer.substring(0, 100) + '...');
 
     groqConversationHistory.push({
         role: 'user',
-        content: transcription.trim()
+        content: questionToAnswer.trim()
     });
 
     if (groqConversationHistory.length > 20) {
@@ -346,7 +417,7 @@ async function sendToGroq(transcription) {
                             if (!inThinkBlock) {
                                 const displayText = stripThinkingTags(fullText);
                                 if (displayText) {
-                                    sendToRenderer('update-response', displayText);
+                                    sendToRenderer('update-response', assumptionPrefix + displayText);
                                 }
                             }
                         }
@@ -373,7 +444,7 @@ async function sendToGroq(transcription) {
                 content: cleanedResponse
             });
 
-            saveConversationTurn(transcription, cleanedResponse);
+            saveConversationTurn(questionToAnswer, cleanedResponse);
         }
 
         console.log(`Groq response completed (${modelToUse})`);
