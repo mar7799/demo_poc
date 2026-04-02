@@ -1,3 +1,5 @@
+# Meta Max Pro
+
 <img width="1299" height="424" alt="Meta Max Pro" src="https://github.com/user-attachments/assets/b25fff4d-043d-4f38-9985-f832ae0d0f6e" />
 
 > [!NOTE]
