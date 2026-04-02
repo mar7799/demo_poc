@@ -72,7 +72,7 @@ Microphone/System Audio
 
 **Why:** When set to AUDIO, Gemini synthesizes a full audio response before `turnComplete` fires, adding 10-15s of latency. We never play the Gemini response anyway — Groq provides the text answer. TEXT mode makes `turnComplete` fire as soon as transcription is ready.
 
-**Status:** ⚠️ KNOWN BUG — currently set to `[Modality.AUDIO]` in `gemini.js` line 532. This is the primary cause of the 15-20 second latency. **Fix: change to `[Modality.TEXT]`.**
+**Status:** ✅ Fixed 2026-04-02. Changed to `[Modality.TEXT]` in `gemini.js`.
 
 ---
 
@@ -140,7 +140,7 @@ TARGET JOB DESCRIPTION:
 
 | # | Issue | Root Cause | Fix |
 |---|-------|-----------|-----|
-| 1 | **15-20 second latency** | Gemini `responseModalities` set to `AUDIO` — generates useless audio before `turnComplete` fires | Change to `[Modality.TEXT]` in `gemini.js` line 532 |
+| ~~1~~ | ~~**15-20 second latency**~~ | ~~Gemini `responseModalities` set to `AUDIO`~~ | ✅ Fixed — `[Modality.TEXT]` |
 | 2 | Responses start with "I" | Prompt says first word shouldn't be "I" but model sometimes ignores it | May need stronger enforcement or few-shot examples |
 
 ---
