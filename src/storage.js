@@ -400,7 +400,7 @@ function getModelForToday() {
 // ============ HISTORY ============
 
 function getSessionPath(sessionId) {
-    return path.join(getMemoryDir(), `${sessionId}.json`);
+    return path.join(getHistoryDir(), `${sessionId}.json`);
 }
 
 function saveSession(sessionId, data) {
@@ -428,7 +428,7 @@ function getSession(sessionId) {
 }
 
 function getAllSessions() {
-    const historyDir = getMemoryDir();
+    const historyDir = getHistoryDir();
 
     try {
         if (!fs.existsSync(historyDir)) {
@@ -480,7 +480,7 @@ function deleteSession(sessionId) {
 }
 
 function deleteAllSessions() {
-    const historyDir = getMemoryDir();
+    const historyDir = getHistoryDir();
     try {
         if (fs.existsSync(historyDir)) {
             const files = fs.readdirSync(historyDir).filter(f => f.endsWith('.json'));
