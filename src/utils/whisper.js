@@ -58,7 +58,9 @@ function pcmToWavBuffer(pcmBuffer) {
 }
 
 async function triggerTranscription() {
-    if (!onTranscriptionCallback || speechBuffer.length === 0) return;
+    // Capture callback reference before any async work — stopWhisperVAD may null it mid-flight
+    const callback = onTranscriptionCallback;
+    if (!callback || speechBuffer.length === 0) return;
 
     const buffer = speechBuffer;
     speechBuffer = Buffer.alloc(0);
@@ -74,9 +76,10 @@ async function triggerTranscription() {
 
     try {
         const transcript = await transcribeWithGroq(buffer);
-        if (transcript && transcript.trim() !== '') {
+        // Re-check isActive after async — session may have stopped while we were transcribing
+        if (transcript && transcript.trim() !== '' && isActive) {
             console.log(`[Whisper] "${transcript}"`);
-            onTranscriptionCallback(transcript);
+            callback(transcript);
         }
     } catch (e) {
         console.error('[Whisper] Transcription error:', e.message);
