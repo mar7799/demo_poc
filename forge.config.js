@@ -30,14 +30,8 @@ module.exports = {
     rebuildConfig: {},
     makers: [
         {
-            name: '@electron-forge/maker-squirrel',
-            config: {
-                name: 'meta-max-pro',
-                productName: 'Meta Max Pro',
-                shortcutName: 'Meta Max Pro',
-                createDesktopShortcut: true,
-                createStartMenuShortcut: true,
-            },
+            name: '@electron-forge/maker-zip',
+            platforms: ['win32'],
         },
         {
             name: '@electron-forge/maker-dmg',
