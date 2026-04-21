@@ -357,25 +357,26 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
             console.log('Linux capture started - system audio:', mediaStream.getAudioTracks().length > 0, 'microphone mode:', audioMode);
         } else {
             // Windows - use display media with loopback for system audio
+            // Note: do NOT specify sampleRate here — Windows loopback doesn't support 24000 Hz
+            // natively and the constraint causes audio tracks to be silently dropped.
+            // AudioContext resamples from whatever rate Windows provides.
             mediaStream = await navigator.mediaDevices.getDisplayMedia({
                 video: {
                     frameRate: 1,
                     width: { ideal: 1920 },
                     height: { ideal: 1080 },
                 },
-                audio: {
-                    sampleRate: SAMPLE_RATE,
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                },
+                audio: true,
             });
 
-            console.log('Windows capture started with loopback audio');
+            const audioTracks = mediaStream.getAudioTracks();
+            console.log('Windows capture started - audio tracks:', audioTracks.length, audioTracks.map(t => t.getSettings()));
 
-            // Setup audio processing for Windows loopback audio only
-            setupWindowsLoopbackProcessing();
+            if (audioTracks.length > 0) {
+                setupWindowsLoopbackProcessing();
+            } else {
+                console.warn('Windows loopback: no audio tracks returned — system audio will not be captured');
+            }
 
             if (audioMode === 'mic_only' || audioMode === 'both') {
                 let micStream = null;
@@ -476,8 +477,9 @@ function setupLinuxSystemAudioProcessing() {
 }
 
 function setupWindowsLoopbackProcessing() {
-    // Setup audio processing for Windows loopback audio only
     audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+    // Electron may start AudioContext suspended due to autoplay policy
+    audioContext.resume();
     const source = audioContext.createMediaStreamSource(mediaStream);
     audioProcessor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
 
