@@ -230,6 +230,168 @@ export class AssistantView extends LitElement {
             text-align: center;
         }
 
+        /* ── Pinned reference chip strip ── */
+
+        .pin-strip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px var(--space-md);
+            border-top: 1px solid var(--border);
+            background: var(--bg-app);
+            overflow-x: auto;
+            flex-shrink: 0;
+        }
+
+        .pin-strip::-webkit-scrollbar {
+            height: 3px;
+        }
+
+        .pin-strip::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .pin-strip::-webkit-scrollbar-thumb {
+            background: var(--border-strong);
+            border-radius: 3px;
+        }
+
+        .pin-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 100px;
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            color: var(--text-muted);
+            font-size: 11px;
+            font-family: var(--font-mono);
+            white-space: nowrap;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: border-color var(--transition), color var(--transition), background var(--transition);
+        }
+
+        .pin-chip:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+
+        .pin-chip.active {
+            border-color: var(--accent);
+            background: var(--bg-surface);
+            color: var(--accent);
+        }
+
+        .pin-chip-icon {
+            font-size: 10px;
+            line-height: 1;
+        }
+
+        /* ── Pinned reference panels ── */
+
+        .pinned-panels {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            overflow-y: auto;
+            max-height: 260px;
+            flex-shrink: 0;
+            background: var(--bg-surface);
+            border-top: 1px solid var(--border);
+        }
+
+        .pinned-panels::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .pinned-panels::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .pinned-panels::-webkit-scrollbar-thumb {
+            background: var(--border-strong);
+            border-radius: 3px;
+        }
+
+        .pinned-panel {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+            line-height: var(--line-height);
+            color: var(--text-primary);
+            user-select: text;
+            cursor: text;
+        }
+
+        .pinned-panel:last-child {
+            border-bottom: none;
+        }
+
+        .pinned-panel * {
+            user-select: text;
+            cursor: text;
+        }
+
+        .pinned-panel .pin-panel-label {
+            font-size: 10px;
+            font-family: var(--font-mono);
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .pinned-panel pre {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm);
+            overflow-x: auto;
+            margin: 0.4em 0;
+            font-size: 12px;
+        }
+
+        .pinned-panel pre code {
+            background: none;
+            padding: 0;
+            font-size: inherit;
+        }
+
+        .pinned-panel code {
+            background: var(--bg-elevated);
+            padding: 0.1em 0.35em;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-mono);
+            font-size: 0.85em;
+        }
+
+        .pinned-panel .mermaid {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm);
+            margin: 0.4em 0;
+            text-align: center;
+            overflow-x: auto;
+        }
+
+        .pinned-panel .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .pinned-panel .mermaid svg text,
+        .pinned-panel .mermaid svg .label,
+        .pinned-panel .mermaid svg .nodeLabel {
+            fill: #F5F5F5 !important;
+            color: #F5F5F5 !important;
+        }
+
         /* ── Bottom input bar ── */
 
         .input-bar {
@@ -375,6 +537,8 @@ export class AssistantView extends LitElement {
         shouldAnimateResponse: { type: Boolean },
         isAnalyzing: { type: Boolean, state: true },
         capturedCount: { type: Number, state: true },
+        _pinnedRefs: { type: Array, state: true },
+        _activePins: { type: Object, state: true },
     };
 
     constructor() {
@@ -386,6 +550,10 @@ export class AssistantView extends LitElement {
         this.isAnalyzing = false;
         this.capturedCount = 0;
         this._animFrame = null;
+        this._pinnedRefs = [];
+        this._activePins = {};
+        this._designCount = 0;
+        this._codeCount = 0;
     }
 
     getProfileNames() {
@@ -695,6 +863,70 @@ export class AssistantView extends LitElement {
         }
     }
 
+    _extractPinLabel(content, type) {
+        if (type === 'design') {
+            // Grab the first heading in the response as the label
+            const match = content.match(/^#{1,3}\s+(.{4,40})/m);
+            if (match) return match[1].replace(/[*_`]/g, '').trim().substring(0, 24);
+            this._designCount += 1;
+            return `Design ${this._designCount}`;
+        } else {
+            // Grab the first function/class/method name from code
+            const match = content.match(/(?:function|class|def|const|let|var)\s+([A-Za-z_]\w*)/);
+            if (match) return match[1].substring(0, 24);
+            this._codeCount += 1;
+            return `Code ${this._codeCount}`;
+        }
+    }
+
+    _maybeAddPinnedRef(content) {
+        if (!content || typeof content !== 'string') return;
+        const hasMermaid = /```mermaid/i.test(content);
+        const hasCode = /```[a-z]/.test(content) && !hasMermaid;
+        if (!hasMermaid && !hasCode) return;
+
+        const type = hasMermaid ? 'design' : 'code';
+        const icon = hasMermaid ? '⬡' : '{ }';
+        const label = this._extractPinLabel(content, type);
+        const id = `pin-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+        this._pinnedRefs = [...this._pinnedRefs, { id, label, icon, type, content }];
+    }
+
+    _togglePin(id) {
+        this._activePins = { ...this._activePins, [id]: !this._activePins[id] };
+        // After toggling on, render mermaid diagrams inside that panel
+        if (this._activePins[id]) {
+            this.updateComplete.then(() => this._renderMermaidInPinnedPanel(id));
+        }
+    }
+
+    _renderMermaidInPinnedPanel(id) {
+        const panel = this.shadowRoot.querySelector(`[data-pin-id="${id}"] .pin-panel-body`);
+        if (!panel || !window.mermaid) return;
+        const diagrams = panel.querySelectorAll('.mermaid[data-code]');
+        diagrams.forEach(async (el, i) => {
+            if (el.dataset.rendered) return;
+            const encoded = el.getAttribute('data-code');
+            if (!encoded) return;
+            const raw = decodeURIComponent(escape(atob(encoded)));
+            const code = raw.replace(/```\s*"?\s*$/, '').trim()
+                .split('\n').map(line =>
+                    line.replace(/\["(.+)"\]/g, (_, l) => `["${l.replace(/"/g, '')}"]`)
+                        .replace(/\("(.+)"\)/g, (_, l) => `("${l.replace(/"/g, '')}")`)
+                        .replace(/\[([^\]"]*[\/\(\)][^\]"]*)\]/g, (_, l) => `["${l}"]`)
+                ).join('\n');
+            try {
+                const svgId = `pin-mermaid-${id}-${i}-${Date.now()}`;
+                const { svg } = await window.mermaid.render(svgId, code);
+                el.innerHTML = svg;
+                el.dataset.rendered = '1';
+            } catch (e) {
+                el.innerHTML = `<pre style="color:#999;font-size:10px;overflow-x:auto;">${code}</pre>`;
+            }
+        });
+    }
+
     scrollToBottom() {
         setTimeout(() => {
             const container = this.shadowRoot.querySelector('.response-container');
@@ -726,6 +958,29 @@ export class AssistantView extends LitElement {
         if (changedProperties.has('responses') && this.isAnalyzing) {
             if (this.responses.length > this._responseCountWhenStarted) {
                 this.isAnalyzing = false;
+            }
+        }
+
+        if (changedProperties.has('_activePins')) {
+            // Render mermaid diagrams in any newly activated pinned panels
+            Object.entries(this._activePins).forEach(([id, active]) => {
+                if (active) this._renderMermaidInPinnedPanel(id);
+            });
+        }
+
+        if (changedProperties.has('responses')) {
+            const prev = changedProperties.get('responses') || [];
+            // Session reset — clear all pins
+            if (this.responses.length === 0 && prev.length > 0) {
+                this._pinnedRefs = [];
+                this._activePins = {};
+                this._designCount = 0;
+                this._codeCount = 0;
+                return;
+            }
+            // A new response arrived — the one before it is now finalized
+            if (this.responses.length > prev.length && this.responses.length >= 2) {
+                this._maybeAddPinnedRef(this.responses[this.responses.length - 2]);
             }
         }
     }
@@ -777,6 +1032,7 @@ export class AssistantView extends LitElement {
         const hasPrev = this.currentResponseIndex > 0;
         const hasNext = this.currentResponseIndex < this.responses.length - 1;
         const showNav = this.responses.length > 0;
+        const activePins = this._pinnedRefs.filter(r => this._activePins[r.id]);
 
         return html`
             <div class="response-container" id="responseContainer"></div>
@@ -794,6 +1050,35 @@ export class AssistantView extends LitElement {
                         <polyline points="9 18 15 12 9 6"/>
                     </svg>
                 </button>
+            </div>
+            ` : ''}
+
+            ${this._pinnedRefs.length > 0 ? html`
+            <div class="pin-strip">
+                ${this._pinnedRefs.map(ref => html`
+                    <button
+                        class="pin-chip ${this._activePins[ref.id] ? 'active' : ''}"
+                        @click=${() => this._togglePin(ref.id)}
+                        title="${ref.label}"
+                    >
+                        <span class="pin-chip-icon">${ref.icon}</span>
+                        ${ref.label}
+                    </button>
+                `)}
+            </div>
+            ` : ''}
+
+            ${activePins.length > 0 ? html`
+            <div class="pinned-panels">
+                ${activePins.map(ref => html`
+                    <div class="pinned-panel" data-pin-id="${ref.id}">
+                        <div class="pin-panel-label">
+                            <span>${ref.icon}</span>
+                            <span>${ref.label}</span>
+                        </div>
+                        <div class="pin-panel-body" .innerHTML=${this.renderMarkdown(ref.content)}></div>
+                    </div>
+                `)}
             </div>
             ` : ''}
 

@@ -41,6 +41,9 @@ function createWindow(sendToRenderer, geminiSessionRef) {
     mainWindow.setResizable(false);
     mainWindow.setContentProtection(true);
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    // Bump to screen-saver level so the overlay floats above full-screen apps
+    // (the default 'floating' level from alwaysOnTop: true does not).
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
 
     // Hide from Windows taskbar
     if (process.platform === 'win32') {
@@ -166,7 +169,13 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
                 if (mainWindow.isVisible()) {
                     mainWindow.hide();
                 } else {
+                    // Re-apply workspace visibility so window appears on the current Space,
+                    // not the Space it was on when hidden.
+                    mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
                     mainWindow.showInactive();
+                    // Re-assert alwaysOnTop at screen-saver level so it floats above
+                    // full-screen apps like Zoom/Meet (default 'floating' level does not).
+                    mainWindow.setAlwaysOnTop(true, 'screen-saver');
                 }
             });
             console.log(`Registered toggleVisibility: ${keybinds.toggleVisibility}`);
@@ -345,7 +354,9 @@ function setupWindowIpcHandlers(mainWindow, sendToRenderer, geminiSessionRef) {
             if (mainWindow.isVisible()) {
                 mainWindow.hide();
             } else {
+                mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
                 mainWindow.showInactive();
+                mainWindow.setAlwaysOnTop(true, 'screen-saver');
             }
             return { success: true };
         } catch (error) {

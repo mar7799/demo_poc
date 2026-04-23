@@ -255,6 +255,37 @@ export class HistoryView extends LitElement {
                 border: 1px dashed var(--border);
                 border-radius: var(--radius-sm);
             }
+
+            .export-row {
+                display: flex;
+                gap: 6px;
+                margin-left: auto;
+            }
+
+            .export-btn {
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                background: transparent;
+                color: var(--text-muted);
+                padding: 4px 10px;
+                cursor: pointer;
+                font-size: var(--font-size-xs);
+                font-family: var(--font-mono);
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                transition: border-color var(--transition), color var(--transition);
+            }
+
+            .export-btn:hover {
+                color: var(--text-primary);
+                border-color: var(--accent);
+            }
+
+            .export-btn:disabled {
+                opacity: 0.4;
+                cursor: default;
+            }
         `,
     ];
 
@@ -380,6 +411,109 @@ export class HistoryView extends LitElement {
         return messages;
     }
 
+    _buildExportText(session) {
+        const profileNames = this.getProfileNames();
+        const profile = profileNames[session.profile] || session.profile || 'Session';
+        const date = this.formatDate(session.createdAt);
+        const time = this.formatTime(session.createdAt);
+        const lines = [
+            `${profile.toUpperCase()}`,
+            `${date} · ${time}`,
+            '═'.repeat(60),
+            '',
+        ];
+        const history = session.conversationHistory || [];
+        history.forEach((turn, i) => {
+            const ts = this.formatTime(turn.timestamp);
+            if (turn.transcription) {
+                lines.push(`[${ts}] Interviewer:`);
+                lines.push(turn.transcription.trim());
+                lines.push('');
+            }
+            if (turn.ai_response) {
+                lines.push(`[${ts}] Answer:`);
+                lines.push(turn.ai_response.trim());
+                lines.push('');
+                if (i < history.length - 1) lines.push('─'.repeat(40), '');
+            }
+        });
+        const screen = session.screenAnalysisHistory || [];
+        if (screen.length) {
+            lines.push('', '═'.repeat(60), 'SCREEN ANALYSIS', '═'.repeat(60), '');
+            screen.forEach(entry => {
+                const ts = this.formatTime(entry.timestamp);
+                lines.push(`[${ts}]`);
+                lines.push(entry.response?.trim() || '');
+                lines.push('');
+            });
+        }
+        lines.push('═'.repeat(60));
+        return lines.join('\n');
+    }
+
+    _buildExportHTML(session) {
+        const profileNames = this.getProfileNames();
+        const profile = profileNames[session.profile] || session.profile || 'Session';
+        const date = this.formatDate(session.createdAt);
+        const time = this.formatTime(session.createdAt);
+        const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+
+        const history = session.conversationHistory || [];
+        const turns = history.map(turn => {
+            const ts = this.formatTime(turn.timestamp);
+            const q = turn.transcription ? `<div class="turn-q"><span class="role">Interviewer <span class="ts">${esc(ts)}</span></span><div class="body">${esc(turn.transcription)}</div></div>` : '';
+            const a = turn.ai_response ? `<div class="turn-a"><span class="role">Answer</span><div class="body">${esc(turn.ai_response)}</div></div>` : '';
+            return `<div class="turn">${q}${a}</div>`;
+        }).join('');
+
+        const screen = session.screenAnalysisHistory || [];
+        const screenSection = screen.length ? `
+            <h2>Screen Analysis</h2>
+            ${screen.map(e => `<div class="turn"><div class="turn-a"><div class="body">${esc(e.response)}</div></div></div>`).join('')}
+        ` : '';
+
+        return `<!DOCTYPE html><html><head><meta charset="utf-8">
+        <title>${esc(profile)} — ${esc(date)}</title>
+        <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; color: #1a1a1a; padding: 40px; max-width: 760px; margin: 0 auto; }
+            h1 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+            .meta { color: #666; font-size: 12px; margin-bottom: 28px; }
+            h2 { font-size: 14px; font-weight: 600; color: #444; margin: 28px 0 12px; border-top: 1px solid #e0e0e0; padding-top: 16px; }
+            .turn { margin-bottom: 18px; border-bottom: 1px solid #f0f0f0; padding-bottom: 18px; }
+            .turn:last-child { border-bottom: none; }
+            .role { display: block; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; }
+            .ts { font-weight: 400; color: #999; }
+            .turn-q .role { color: #2563eb; }
+            .turn-a .role { color: #16a34a; }
+            .body { line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+            .turn-q { margin-bottom: 10px; }
+            @media print { body { padding: 20px; } }
+        </style></head><body>
+        <h1>${esc(profile)}</h1>
+        <div class="meta">${esc(date)} · ${esc(time)} · ${history.length} exchange${history.length !== 1 ? 's' : ''}</div>
+        ${turns}${screenSection}
+        </body></html>`;
+    }
+
+    async _exportAsText() {
+        if (!this.selectedSession) return;
+        const { ipcRenderer } = window.require('electron');
+        const text = this._buildExportText(this.selectedSession);
+        const date = new Date(this.selectedSession.createdAt).toISOString().slice(0, 10);
+        const profile = (this.selectedSession.profile || 'session').replace(/\s+/g, '-');
+        await ipcRenderer.invoke('export-session', { type: 'text', content: text, filename: `${profile}-${date}` });
+    }
+
+    async _exportAsPDF() {
+        if (!this.selectedSession) return;
+        const { ipcRenderer } = window.require('electron');
+        const html = this._buildExportHTML(this.selectedSession);
+        const date = new Date(this.selectedSession.createdAt).toISOString().slice(0, 10);
+        const profile = (this.selectedSession.profile || 'session').replace(/\s+/g, '-');
+        await ipcRenderer.invoke('export-session', { type: 'pdf', html, filename: `${profile}-${date}` });
+    }
+
     renderTabContent() {
         if (!this.selectedSession) return html`<div class="empty">Select a session.</div>`;
 
@@ -479,6 +613,16 @@ export class HistoryView extends LitElement {
                     </svg>
                 </button>
                 <span class="detail-info">${this._getProfileLabel(this.selectedSession)} · ${this.formatDate(this.selectedSession.createdAt)} · ${this.formatTime(this.selectedSession.createdAt)}</span>
+                <div class="export-row">
+                    <button class="export-btn" @click=${this._exportAsText} title="Save as plain text file">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        TXT
+                    </button>
+                    <button class="export-btn" @click=${this._exportAsPDF} title="Save as PDF">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                        PDF
+                    </button>
+                </div>
             </div>
             <div class="tab-row">
                 <button class="tab-btn ${this.activeTab === 'conversation' ? 'active' : ''}" @click=${() => { this.activeTab = 'conversation'; }}>
