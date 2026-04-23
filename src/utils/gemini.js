@@ -2,7 +2,8 @@ const { GoogleGenAI, Modality } = require('@google/genai');
 const { BrowserWindow, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const { saveDebugAudio } = require('../audioUtils');
-const { getSystemPrompt } = require('./prompts');
+const { getSystemPrompt, buildDynamicPrompt } = require('./prompts');
+const { classifyQuestion } = require('./classifier');
 const { getAvailableModel, incrementLimitCount, getApiKey, getGroqApiKey, getAnthropicApiKey, incrementCharUsage, getModelForToday, saveSession: persistSession } = require('../storage');
 const { connectCloud, sendCloudAudio, sendCloudText, sendCloudImage, closeCloud, setOnTurnComplete } = require('./cloud');
 const { startWhisperVAD, stopWhisperVAD, processAudioChunk: processWhisperChunk } = require('./whisper');
@@ -491,6 +492,15 @@ async function sendToGroq(transcription) {
     const questionToAnswer = intent;
     const assumptionPrefix = '';
 
+    // Build a focused, type-specific prompt instead of the full monolithic prompt.
+    // Only applies to interview profile — all other profiles use currentSystemPrompt as-is.
+    let activeSystemPrompt = currentSystemPrompt || 'You are a helpful assistant.';
+    if (currentProfile === 'interview') {
+        const questionType = classifyQuestion(questionToAnswer);
+        activeSystemPrompt = buildDynamicPrompt(questionType, currentCustomPrompt || '');
+        console.log(`[Classifier] Type: ${questionType} | Prompt: ${activeSystemPrompt.length} chars`);
+    }
+
     const modelToUse = getModelForToday();
     if (!modelToUse) {
         console.log('All Groq daily limits exhausted');
@@ -521,7 +531,7 @@ async function sendToGroq(transcription) {
             body: JSON.stringify({
                 model: modelToUse,
                 messages: [
-                    { role: 'system', content: currentSystemPrompt || 'You are a helpful assistant.' },
+                    { role: 'system', content: activeSystemPrompt },
                     ...groqConversationHistory
                 ],
                 stream: true,
@@ -580,7 +590,7 @@ async function sendToGroq(transcription) {
         const cleanedResponse = stripThinkingTags(fullText);
         const modelKey = modelToUse.split('/').pop();
 
-        const systemPromptChars = (currentSystemPrompt || 'You are a helpful assistant.').length;
+        const systemPromptChars = activeSystemPrompt.length;
         const historyChars = groqConversationHistory.reduce((sum, msg) => sum + (msg.content || '').length, 0);
         const inputChars = systemPromptChars + historyChars;
         const outputChars = cleanedResponse.length;
@@ -1682,6 +1692,43 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
         } catch (error) {
             console.error('Error starting new session:', error);
             return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('export-session', async (_event, { type, content, html, filename }) => {
+        const { dialog, BrowserWindow: BW } = require('electron');
+        const fs = require('fs');
+
+        try {
+            if (type === 'text') {
+                const result = await dialog.showSaveDialog({
+                    defaultPath: filename + '.txt',
+                    filters: [{ name: 'Text Files', extensions: ['txt'] }],
+                });
+                if (!result.canceled && result.filePath) {
+                    fs.writeFileSync(result.filePath, content, 'utf8');
+                    return { success: true };
+                }
+            } else if (type === 'pdf') {
+                const result = await dialog.showSaveDialog({
+                    defaultPath: filename + '.pdf',
+                    filters: [{ name: 'PDF Files', extensions: ['pdf'] }],
+                });
+                if (!result.canceled && result.filePath) {
+                    const win = new BW({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true } });
+                    await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+                    // Give page a moment to render (fonts, layout)
+                    await new Promise(r => setTimeout(r, 600));
+                    const pdfBuffer = await win.webContents.printToPDF({ marginsType: 1, pageSize: 'A4', printBackground: true });
+                    win.close();
+                    fs.writeFileSync(result.filePath, pdfBuffer);
+                    return { success: true };
+                }
+            }
+            return { success: false };
+        } catch (err) {
+            console.error('[export-session]', err);
+            return { success: false, error: err.message };
         }
     });
 
