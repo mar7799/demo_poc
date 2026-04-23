@@ -461,12 +461,15 @@ const DYNAMIC_TYPE_PROMPTS = {
     behavioral: `ANSWER STYLE — BEHAVIORAL:
 Start mid-story, not mid-setup. Flow: sharp opener naming something real → what YOU personally did (decisions, tradeoffs, actions) → concrete result with a number or visible impact. The STAR structure is the skeleton underneath — interviewer should never feel it. Pick the story that best matches what this role values most from the JD.`,
 
-    technical: `ANSWER STYLE — TECHNICAL (30-60 second spoken answer):
-Line 1: Confident summary — what it is in your own words + where you've used it. Never a textbook definition.
-Lines 2-3: Real-world anchor — "At [Company] building [X], we used this because..." What you ran into, what surprised you.
-Line 4: The trade-off you made and why — "we chose X over Y because at our scale the bottleneck was Z."
-Line 5: Production reality — how you debug it, monitor it, handle failures. Name tools: Grafana, dead-letter queues, etc.
-Close: Strong ownership — "the thing I'd do differently now is..." or "what I've found works best in practice is..."`,
+    technical: `ANSWER STYLE — TECHNICAL (2 tight paragraphs max, spoken prose — NO headers, NO "Option 1/2/3" lists):
+
+PARAGRAPH 1 — Your choice + WHY (3-4 sentences):
+State what you used and the specific reason you chose it — name the exact technical property that made it the right call (e.g. "consumer group semantics", "offset-based replay", "fan-out without dequeuing"). If the term is non-obvious, define it inline in one clause — e.g. "a traditional queue where one consumer dequeues the message and the others never see it." Anchor in a real constraint from the project. This paragraph alone must fully answer the question.
+
+PARAGRAPH 2 — Alternatives + honest opinion (3-4 sentences):
+Name 2-3 real alternatives in flowing prose (not a list). For each: one clause on what it gives you, one clause on the tradeoff or when you'd reach for it instead. End with a strong honest opinion — e.g. "the mistake I've seen is defaulting to X without asking whether you actually need Y — the operational overhead is real." No hedge, no "it depends", give a real take.
+
+BANNED in technical answers: "Let me walk you through", "Option 1", "Option 2", bullet points, headers, "there are several approaches", "it's worth noting".`,
 
     system_design: `ANSWER STYLE — SYSTEM DESIGN:
 STEP 1 CLARIFY — ask 2-3 questions first (scale, read/write ratio, consistency needs, latency SLA). Never skip this.
@@ -495,10 +498,11 @@ Pause and ask: what is the interviewer ACTUALLY testing here? Answer the surface
 };
 
 const DYNAMIC_FORMAT = `FORMAT RULES:
-- Opening paragraph FIRST: 3-4 sentences that fully answer the question on their own. First output token = first word of this paragraph. No warm-up.
-- After opening: blank line + "---" + blank line, then full depth.
-- Bold 2-4 key technical terms per answer (the ones the interviewer is scoring mentally).
-- End with momentum: a lesson from a real failure, a strong technical opinion, or a JD connection. Never end with a summary of what you just said.`;
+- First output token = first word of your answer. No warm-up, no "Great question", no setup sentence.
+- Technical knowledge questions: 2 paragraphs MAX, flowing prose. No "---" separator, no extended detail section, no headers, no bullet lists.
+- Behavioral / system design / coding questions: opening paragraph (3-4 sentences, complete standalone answer) → blank line + "---" + blank line → full detail below.
+- Bold 2-4 key technical terms per answer (the ones the interviewer is mentally scoring).
+- End with momentum: a strong honest opinion, a lesson from a real failure, or a JD connection. Never summarize what you just said.`;
 
 function buildDynamicPrompt(questionType, customPrompt = '') {
     const typeInstructions = DYNAMIC_TYPE_PROMPTS[questionType] || DYNAMIC_TYPE_PROMPTS.technical;
