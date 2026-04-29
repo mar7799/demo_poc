@@ -623,6 +623,7 @@ If CODING:
 \`\`\`[language]
 [complete, working, copy-paste ready code that handles all edge cases shown]
 \`\`\`
+CRITICAL for coding: if the screenshot shows an existing code snippet (a class, a main method, a function stub, a method call like solve() or calculate()), you MUST use the EXACT same class name, method/function name, and parameter names shown. Never rename them. Write your solution to fit into the existing structure, not replace it.
 
 If MCQ:
 **Answer:** [option letter(s)] — [full option text]
@@ -868,7 +869,20 @@ function handleShortcut(shortcutKey) {
         if (currentView === 'main') {
             metaMaxPro.element().handleStart();
         } else {
-            captureManualScreenshot();
+            // If screenshots are buffered → solve all; otherwise single capture+analyze
+            if (capturedScreenshots.length > 0) {
+                analyzeWithCapturedScreenshots();
+            } else {
+                captureManualScreenshot();
+            }
+        }
+    }
+
+    if (shortcutKey === 'ctrl+shift+c' || shortcutKey === 'cmd+shift+c') {
+        if (currentView !== 'main') {
+            captureScreenshotToBuffer().then(count => {
+                metaMaxPro.updateCaptureCount(count);
+            });
         }
     }
 }
@@ -1115,6 +1129,10 @@ const metaMaxPro = {
     setStatus: text => metaMaxProApp.setStatus(text),
     addNewResponse: response => metaMaxProApp.addNewResponse(response),
     updateCurrentResponse: response => metaMaxProApp.updateCurrentResponse(response),
+    updateCaptureCount: count => {
+        const av = metaMaxProApp.shadowRoot?.querySelector('assistant-view');
+        if (av) av.capturedCount = count;
+    },
 
     // Core functionality
     initializeGemini,

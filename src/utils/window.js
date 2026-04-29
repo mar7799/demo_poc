@@ -107,6 +107,7 @@ function getDefaultKeybinds() {
         toggleVisibility: isMac ? 'Cmd+\\' : 'Ctrl+\\',
         toggleClickThrough: isMac ? 'Cmd+M' : 'Ctrl+M',
         nextStep: isMac ? 'Cmd+Enter' : 'Ctrl+Enter',
+        captureToBuffer: isMac ? 'Cmd+Shift+C' : 'Ctrl+Shift+C',
         previousResponse: isMac ? 'Cmd+[' : 'Ctrl+[',
         nextResponse: isMac ? 'Cmd+]' : 'Ctrl+]',
         scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
@@ -225,6 +226,24 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
             console.log(`Registered nextStep: ${keybinds.nextStep}`);
         } catch (error) {
             console.error(`Failed to register nextStep (${keybinds.nextStep}):`, error);
+        }
+    }
+
+    // Register capture-to-buffer shortcut (Cmd+Shift+C)
+    // Adds a screenshot to the buffer without analyzing — press multiple times
+    // for multi-page questions, then Cmd+Enter to solve all at once.
+    if (keybinds.captureToBuffer) {
+        try {
+            globalShortcut.register(keybinds.captureToBuffer, () => {
+                const isMac = process.platform === 'darwin';
+                const shortcutKey = isMac ? 'cmd+shift+c' : 'ctrl+shift+c';
+                mainWindow.webContents.executeJavaScript(`
+                    metaMaxPro.handleShortcut('${shortcutKey}');
+                `).catch(() => {});
+            });
+            console.log(`Registered captureToBuffer: ${keybinds.captureToBuffer}`);
+        } catch (error) {
+            console.error(`Failed to register captureToBuffer (${keybinds.captureToBuffer}):`, error);
         }
     }
 

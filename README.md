@@ -71,9 +71,14 @@ For the ZIP: extract the folder, then right-click `Meta Max Pro.exe` → **Prope
 ## Keyboard Shortcuts
 
 - **Window Movement**: `Ctrl/Cmd + Arrow Keys` - Move window
-- **Click-through**: `Ctrl/Cmd + M` - Toggle mouse events
 - **Toggle Visibility**: `Ctrl/Cmd + \` - Hide or show the window
-- **Send Message**: `Enter` - Send text to AI
+- **Click-through**: `Ctrl/Cmd + M` - Toggle mouse click-through
+- **Analyze Screen**: `Ctrl/Cmd + Enter` - Single screenshot + analyze immediately (or solve buffered captures)
+- **Capture to Buffer**: `Ctrl/Cmd + Shift + C` - Add screenshot to buffer (press multiple times for multi-page questions, then `Cmd+Enter` to solve all)
+- **Previous Response**: `Ctrl/Cmd + [` - Navigate to previous answer
+- **Next Response**: `Ctrl/Cmd + ]` - Navigate to next answer
+- **Scroll Up/Down**: `Ctrl/Cmd + Shift + Up/Down`
+- **Emergency Erase**: `Ctrl/Cmd + Shift + E` - Hide and clear screen
 
 ## Audio Capture
 
