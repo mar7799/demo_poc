@@ -19,40 +19,9 @@ A real-time AI assistant that provides contextual help during video calls, inter
 
 ## Download
 
-Get the latest release from the [Releases page](https://github.com/mar7799/demo_poc/releases/latest).
-
-| Platform | File |
+| Platform | Link |
 |---|---|
-| macOS Apple Silicon (M1/M2/M3) | `Meta Max Pro-x.x.x-arm64.dmg` |
-| macOS Intel | `Meta Max Pro-x.x.x-x64.dmg` |
-| Windows x64 | `Meta Max Pro-win32-x64-x.x.x.zip` |
-| Windows ARM | `Meta Max Pro-win32-arm64-x.x.x.zip` |
-
----
-
-## ⚠️ Installation — Security Warnings
-
-The app is not code-signed yet. Both macOS and Windows will show a security warning on first launch. Follow the steps below to open it.
-
-### macOS — "Meta Max Pro is damaged and can't be opened"
-
-**Option A — Right-click to open (easiest):**
-1. Drag `Meta Max Pro.app` to your **Applications** folder
-2. **Right-click** (or Control-click) the app → click **Open**
-3. Click **Open** in the dialog that appears
-
-**Option B — Remove the quarantine flag via Terminal:**
-```bash
-xattr -cr "/Applications/Meta Max Pro.app"
-```
-Then double-click to open normally.
-
-### Windows — "Windows protected your PC" / no signature warning
-
-1. Click **More info** in the SmartScreen popup
-2. Click **Run anyway**
-
-For the ZIP: extract the folder, then right-click `Meta Max Pro.exe` → **Properties** → check **Unblock** at the bottom → **Apply** → **OK**, then double-click to launch.
+| macOS (Apple Silicon) | [Meta Max Pro-0.7.0-arm64.dmg](https://github.com/mar7799/demo_poc/releases/download/v0.7.0/Meta.Max.Pro-0.7.0-arm64.dmg) |
 
 ## Setup (Development)
 
@@ -72,7 +41,7 @@ For the ZIP: extract the folder, then right-click `Meta Max Pro.exe` → **Prope
 
 - **Window Movement**: `Ctrl/Cmd + Arrow Keys` - Move window
 - **Click-through**: `Ctrl/Cmd + M` - Toggle mouse events
-- **Toggle Visibility**: `Ctrl/Cmd + \` - Hide or show the window
+- **Close/Back**: `Ctrl/Cmd + \` - Close window or go back
 - **Send Message**: `Enter` - Send text to AI
 
 ## Audio Capture

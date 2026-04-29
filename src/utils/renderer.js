@@ -604,42 +604,25 @@ So if its a code question, give me the approach in few bullet points, then the e
 If its a question about the website, give me the answer no bs, complete answer.
 If its a mcq question, give me the answer no bs, complete answer.`;
 
-const CODING_EXERCISE_PROMPT = `You are helping me answer the question shown in the screenshot(s). Read ALL screenshots carefully before responding.
+const CODING_EXERCISE_PROMPT = `You are solving a coding exercise. I have provided one or more screenshots of the COMPLETE problem.
 
-STEP 1 — Identify the question type from the screenshot:
-- CODING: has a code editor, asks to write/complete a function or class, shows input/output examples
-- MCQ: multiple choice — select one or more correct options
-- MATCHING / DRAG-DROP: match items from one column to another
-- THEORY / CONFIG: explain a concept, identify correct behavior, choose the right config parameter
-- OTHER: anything else — describe what you see and answer directly
+First, carefully read ALL screenshots to understand the full problem, constraints, examples, and edge cases.
 
-STEP 2 — Answer using the correct format for the type:
+Then identify the programming language (check for language selector, code template, or context clues in the screenshots).
 
-If CODING:
+Provide your response in this format:
+
 **Language:** [detected language]
+
 **Approach:**
-- [max 3 bullet points — strategy only, no fluff]
+- [brief bullet points explaining your strategy, max 3]
+
 **Solution:**
 \`\`\`[language]
-[complete, working, copy-paste ready code that handles all edge cases shown]
+[complete, working, copy-paste ready code that handles all edge cases]
 \`\`\`
 
-If MCQ:
-**Answer:** [option letter(s)] — [full option text]
-**Why:** [1–2 sentences — why this is correct and why the others are wrong]
-
-If MATCHING / DRAG-DROP:
-**Matches:**
-- [Item] → [Correct match]
-- [Item] → [Correct match]
-(list every pair)
-**Why:** [1–2 sentences explaining the key distinction]
-
-If THEORY / CONFIG:
-**Answer:** [direct, complete answer]
-**Why:** [1–2 sentences — the specific reason, not a generic explanation]
-
-No partial answers. Be direct. Do not restate the question.`;
+No partial solutions. The code must pass all the examples shown.`;
 
 // Shared helper: initialise video+canvas and return a base64 JPEG frame
 async function _captureFrameAsBase64(quality = 'medium') {
