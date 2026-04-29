@@ -1288,6 +1288,72 @@ async function sendImageToGeminiHttp(base64Data, prompt) {
     }
 }
 
+async function sendImageToAnthropicHttp(images, prompt) {
+    const anthropicApiKey = getAnthropicApiKey();
+    if (!anthropicApiKey) {
+        return { success: false, error: 'No Anthropic API key configured' };
+    }
+
+    try {
+        const imageContent = images.map(data => ({
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/jpeg', data },
+        }));
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'x-api-key': anthropicApiKey,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-6',
+                max_tokens: 4096,
+                stream: true,
+                messages: [{
+                    role: 'user',
+                    content: [...imageContent, { type: 'text', text: prompt }],
+                }],
+            }),
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            return { success: false, error: err };
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            for (const line of chunk.split('\n')) {
+                if (!line.startsWith('data: ')) continue;
+                const data = line.slice(6);
+                if (data === '[DONE]' || data.trim() === '') continue;
+                try {
+                    const json = JSON.parse(data);
+                    const token = json.delta?.text || '';
+                    if (token) {
+                        fullText += token;
+                        sendToRenderer('update-response', fullText);
+                    }
+                } catch {}
+            }
+        }
+
+        saveScreenAnalysis(prompt, fullText, 'claude-sonnet-4-6');
+        return { success: true, text: fullText, model: 'claude-sonnet-4-6' };
+    } catch (error) {
+        console.error('Error sending image to Anthropic:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 async function sendMultipleImagesToGeminiHttp(images, prompt) {
     const model = getAvailableModel();
     const apiKey = getApiKey();
@@ -1515,6 +1581,11 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return result;
             }
 
+            if (currentProviderMode === 'anthropic') {
+                const result = await sendImageToAnthropicHttp([data], prompt);
+                return result;
+            }
+
             // Use HTTP API instead of realtime session
             const result = await sendImageToGeminiHttp(data, prompt);
             return result;
@@ -1537,8 +1608,12 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             }
 
             if (currentProviderMode === 'local') {
-                // Local AI - analyze first image with full prompt
                 const result = await getLocalAi().sendLocalImage(images[0], prompt);
+                return result;
+            }
+
+            if (currentProviderMode === 'anthropic') {
+                const result = await sendImageToAnthropicHttp(images, prompt);
                 return result;
             }
 

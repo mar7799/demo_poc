@@ -730,23 +730,28 @@ export class MainView extends LitElement {
 
     // ── Start ──
 
-    _handleStart() {
+    // Read keys fresh from storage — avoids race condition where
+    // _loadFromStorage() hasn't completed yet when Start is pressed.
+    async _handleStart() {
         if (this.isInitializing) return;
 
         if (this._mode === 'cloud') {
-            if (!this._token.trim()) {
+            const token = this._token || (await metaMaxPro.storage.getCredentials().catch(() => ({}))).cloudToken || '';
+            if (!token.trim()) {
                 this._tokenError = true;
                 this.requestUpdate();
                 return;
             }
         } else if (this._mode === 'byok') {
-            if (!this._geminiKey.trim()) {
+            const key = await metaMaxPro.storage.getApiKey().catch(() => '');
+            if (!key || !key.trim()) {
                 this._keyError = true;
                 this.requestUpdate();
                 return;
             }
         } else if (this._mode === 'anthropic') {
-            if (!this._anthropicKey.trim()) {
+            const key = await metaMaxPro.storage.getAnthropicApiKey().catch(() => '');
+            if (!key || !key.trim()) {
                 this._keyError = true;
                 this.requestUpdate();
                 return;
