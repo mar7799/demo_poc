@@ -477,35 +477,37 @@ Identify the sub-type and follow the matching structure:
 
 BANNED: mermaid diagrams, code blocks, "Let me walk you through", bullet points, headers, "there are several approaches".`,
 
-    system_design: `ANSWER STYLE — SYSTEM DESIGN (strict two-phase — NEVER combine into one response):
+    system_design: `ANSWER STYLE — SYSTEM DESIGN (strict two-phase — one phase per response, never both):
 
-PHASE 1 — first response to a fresh design question (no interviewer answers yet in conversation history):
-Output ONLY 2-3 clarifying questions. NOTHING ELSE. No architecture, no diagram, no approach, not even a hint of the design.
-Pick the most impactful constraints: scale (users/QPS), consistency (strong vs eventual), latency SLA, read vs write ratio.
-Format: "Before I jump in, a couple of things that'll shape the design..." then the questions. End your response there. Do not continue.
+PHASE 1 — when the design question is fresh (the interviewer has not yet answered any clarifying questions):
+Your ENTIRE response = the clarifying questions only. Nothing else.
+Do NOT write any architecture, do NOT draw a diagram, do NOT state an approach, do NOT make assumptions on their behalf.
+Ask 2-3 questions: scale (users/QPS), consistency (strong vs eventual), latency SLA, read vs write ratio.
+Start with: "Before I jump in, a couple of things that'll shape the design..." then list the questions. Your response ends there. Full stop.
 
-PHASE 2 — ONLY after you can see the interviewer's answers to your clarifying questions in the conversation history:
-NOW produce the full design using their specific answers:
-- APPROACH: 2-3 sentences on high-level architecture and key trade-offs based on their constraints
-- DIAGRAM: Mermaid diagram (\`\`\`mermaid) — production-scale. Separate read and write paths. Label the scale numbers they gave you.
-- Walk through each major decision referencing their answers ("since you said eventual consistency is fine...")
+PHASE 2 — when the interviewer has answered your questions (their answers are visible in the conversation):
+Now produce the full design using their specific answers:
+- APPROACH: 2-3 sentences on architecture and key trade-offs based on their constraints
+- DIAGRAM: Mermaid diagram (\`\`\`mermaid) — production-scale, separate read/write paths, label their scale numbers
+- Walk through each major decision referencing their answers
 
-If you cannot see answers to your questions yet — output ONLY the questions and stop. No exceptions.`,
+The rule: one phase per response. If you are in PHASE 1, your response contains ZERO design, ZERO diagram, ZERO assumptions. Questions only.`,
 
-    coding: `ANSWER STYLE — CODING (strict two-phase — NEVER combine into one response):
+    coding: `ANSWER STYLE — CODING (strict two-phase — one phase per response, never both):
 
-PHASE 1 — first response to a fresh coding question (no interviewer answers yet in conversation history):
-Output ONLY clarifying questions. NOTHING ELSE. No algorithm, no code, no complexity, not even an approach hint.
-Ask the 2-3 that matter most: input size/constraints, edge cases (empty? nulls? duplicates?), output format, time vs space trade-off, language preference.
-Format: "Before I start, just a couple quick things..." then the questions. End your response there. Do not continue.
+PHASE 1 — when the coding question is fresh (the interviewer has not yet answered any clarifying questions):
+Your ENTIRE response = the clarifying questions only. Nothing else.
+Do NOT write "Assuming...", do NOT write "---", do NOT write any code, do NOT state an approach, do NOT make assumptions on their behalf.
+Ask 2-3 questions: input size/constraints, edge cases (empty? nulls? duplicates?), language preference, time vs space.
+Start with: "Before I start, just a couple quick things..." then list the questions. Your response ends there. Full stop.
 
-PHASE 2 — ONLY after you can see the interviewer's answers in the conversation history:
-NOW produce the full solution using their specific answers:
-- APPROACH: algorithm name + O(n) time and space complexity upfront, one alternative you ruled out and why
-- CODE: clean, complete, runnable code handling the confirmed edge cases. CRITICAL: if they showed a code snippet with class/function/method/parameter names — use those EXACT names, never rename them.
-- WALKTHROUGH: trace through one example input
+PHASE 2 — when the interviewer has answered your questions (their answers are visible in the conversation):
+Now write the full solution:
+- APPROACH: algorithm + O(n) complexity upfront, one alternative ruled out
+- CODE: clean, complete, runnable. Use EXACT class/function/parameter names from any existing snippet shown.
+- WALKTHROUGH: trace one example
 
-If you cannot see answers to your questions yet — output ONLY the questions and stop. No exceptions.`,
+The rule: one phase per response. If you are in PHASE 1, your response contains ZERO code, ZERO assumptions, ZERO approach. Questions only.`,
 
     self_reflection: `ANSWER STYLE — SELF-REFLECTION:
 Give a REAL failure — not a humble-brag. Specific story: what went wrong, what you missed, the real cost of it. What concretely changed after — a specific behavior shift, not "I learned to communicate better". Start: "Honestly — there's a specific thing that comes to mind from [Company]..."`,
