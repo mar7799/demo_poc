@@ -106,6 +106,7 @@ function getDefaultKeybinds() {
         moveRight: isMac ? 'Alt+Right' : 'Ctrl+Right',
         toggleVisibility: isMac ? 'Cmd+\\' : 'Ctrl+\\',
         toggleClickThrough: isMac ? 'Cmd+M' : 'Ctrl+M',
+        startSession: isMac ? 'Cmd+Enter' : 'Ctrl+Enter',
         nextStep: isMac ? 'Cmd+Enter' : 'Ctrl+Enter',
         captureToBuffer: isMac ? 'Cmd+Shift+C' : 'Ctrl+Shift+C',
         previousResponse: isMac ? 'Cmd+[' : 'Ctrl+[',
@@ -202,6 +203,23 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
             console.log(`Registered toggleClickThrough: ${keybinds.toggleClickThrough}`);
         } catch (error) {
             console.error(`Failed to register toggleClickThrough (${keybinds.toggleClickThrough}):`, error);
+        }
+    }
+
+    // Register start session shortcut — only register separately if it differs from nextStep
+    // (by default both are Cmd+Enter; the nextStep handler already calls handleStart on main view)
+    if (keybinds.startSession && keybinds.startSession !== keybinds.nextStep) {
+        try {
+            globalShortcut.register(keybinds.startSession, () => {
+                const isMac = process.platform === 'darwin';
+                const shortcutKey = isMac ? 'cmd+start' : 'ctrl+start';
+                mainWindow.webContents.executeJavaScript(`
+                    metaMaxPro.handleShortcut('${shortcutKey}');
+                `).catch(() => {});
+            });
+            console.log(`Registered startSession: ${keybinds.startSession}`);
+        } catch (error) {
+            console.error(`Failed to register startSession (${keybinds.startSession}):`, error);
         }
     }
 

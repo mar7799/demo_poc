@@ -878,6 +878,12 @@ function handleShortcut(shortcutKey) {
         }
     }
 
+    if (shortcutKey === 'ctrl+start' || shortcutKey === 'cmd+start') {
+        if (currentView === 'main') {
+            metaMaxPro.element().handleStart();
+        }
+    }
+
     if (shortcutKey === 'ctrl+shift+c' || shortcutKey === 'cmd+shift+c') {
         if (currentView !== 'main') {
             captureScreenshotToBuffer().then(count => {
