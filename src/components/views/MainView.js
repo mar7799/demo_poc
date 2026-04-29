@@ -724,24 +724,6 @@ export class MainView extends LitElement {
         this.requestUpdate();
     }
 
-    async _saveOllamaHost(val) {
-        this._ollamaHost = val;
-        await metaMaxPro.storage.updatePreference('ollamaHost', val);
-        this.requestUpdate();
-    }
-
-    async _saveOllamaModel(val) {
-        this._ollamaModel = val;
-        await metaMaxPro.storage.updatePreference('ollamaModel', val);
-        this.requestUpdate();
-    }
-
-    async _saveWhisperModel(val) {
-        this._whisperModel = val;
-        await metaMaxPro.storage.updatePreference('whisperModel', val);
-        this.requestUpdate();
-    }
-
     _handleProfileChange(e) {
         this.onProfileChange(e.target.value);
     }
@@ -761,11 +743,6 @@ export class MainView extends LitElement {
             if (!this._geminiKey.trim()) {
                 this._keyError = true;
                 this.requestUpdate();
-                return;
-            }
-        } else if (this._mode === 'local') {
-            // Local mode doesn't need API keys, just Ollama host
-            if (!this._ollamaHost.trim()) {
                 return;
             }
         } else if (this._mode === 'anthropic') {
@@ -908,67 +885,6 @@ export class MainView extends LitElement {
         `;
     }
 
-    // ── Local AI mode (removed) ──
-
-    _renderLocalMode() {
-        return html`
-            <div class="form-group">
-                <label class="form-label">Ollama Host</label>
-                <input
-                    type="text"
-                    placeholder="http://127.0.0.1:11434"
-                    .value=${this._ollamaHost}
-                    @input=${e => this._saveOllamaHost(e.target.value)}
-                />
-                <div class="form-hint">Ollama must be running locally</div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Ollama Model</label>
-                <input
-                    type="text"
-                    placeholder="llama3.1"
-                    .value=${this._ollamaModel}
-                    @input=${e => this._saveOllamaModel(e.target.value)}
-                />
-                <div class="form-hint">Run <code style="font-family: var(--font-mono); font-size: 11px; background: var(--bg-elevated); padding: 1px 4px; border-radius: 3px;">ollama pull ${this._ollamaModel}</code> first</div>
-            </div>
-
-            <div class="form-group">
-                <div class="whisper-label-row">
-                    <label class="form-label">Whisper Model</label>
-                    ${this.whisperDownloading ? html`<div class="whisper-spinner"></div>` : ''}
-                </div>
-                <select
-                    .value=${this._whisperModel}
-                    @change=${e => this._saveWhisperModel(e.target.value)}
-                >
-                    <option value="Xenova/whisper-tiny" ?selected=${this._whisperModel === 'Xenova/whisper-tiny'}>Tiny (fastest, least accurate)</option>
-                    <option value="Xenova/whisper-base" ?selected=${this._whisperModel === 'Xenova/whisper-base'}>Base</option>
-                    <option value="Xenova/whisper-small" ?selected=${this._whisperModel === 'Xenova/whisper-small'}>Small (recommended)</option>
-                    <option value="Xenova/whisper-medium" ?selected=${this._whisperModel === 'Xenova/whisper-medium'}>Medium (most accurate, slowest)</option>
-                </select>
-                <div class="form-hint">${this.whisperDownloading ? 'Downloading model...' : 'Downloaded automatically on first use'}</div>
-            </div>
-
-            ${this._renderStartButton()}
-            ${this._renderDivider()}
-
-            <div class="cloud-promo" @click=${() => this._saveMode('cloud')}>
-                <div class="cloud-promo-glow"></div>
-                <div class="cloud-promo-header">
-                    <span class="cloud-promo-title">Switch to Meta Max Pro Cloud</span>
-                    <span class="cloud-promo-arrow">&rarr;</span>
-                </div>
-                <div class="cloud-promo-desc">No API keys, no setup, no billing headaches. It just works.</div>
-            </div>
-
-            <div class="mode-links">
-                <button class="mode-link" @click=${() => this._saveMode('byok')}>Use own API keys</button>
-            </div>
-        `;
-    }
-
     // ── Anthropic mode ──
 
     _renderAnthropicMode() {
@@ -1045,60 +961,6 @@ export class MainView extends LitElement {
         `;
     }
 
-    _renderLocalHelp() {
-        return html`
-            <div class="help-content">
-                <div class="help-section">
-                    <div class="help-section-title">What is Ollama?</div>
-                    <div class="help-section-text">Ollama lets you run large language models locally on your machine. Everything stays on your computer — no data leaves your device.</div>
-                </div>
-
-                <div class="help-section">
-                    <div class="help-section-title">Install Ollama</div>
-                    <div class="help-section-text">Download from <span class="help-link" @click=${() => this.onExternalLink('https://ollama.com/download')}>ollama.com/download</span> and install it.</div>
-                </div>
-
-                <div class="help-section">
-                    <div class="help-section-title">Ollama must be running</div>
-                    <div class="help-section-text">Ollama needs to be running before you start a session. If it's not running, open your terminal and type:</div>
-                    <code class="help-code">ollama serve</code>
-                </div>
-
-                <div class="help-section">
-                    <div class="help-section-title">Pull a model</div>
-                    <div class="help-section-text">Download a model before first use:</div>
-                    <code class="help-code">ollama pull gemma3:4b</code>
-                </div>
-
-                <div class="help-section">
-                    <div class="help-section-title">Recommended models</div>
-                    <div class="help-models">
-                        <div class="help-model"><span class="help-model-name">gemma3:4b</span><span>4B — fast, multimodal (images + text)</span></div>
-                        <div class="help-model"><span class="help-model-name">mistral-small</span><span>8B — solid all-rounder, text only</span></div>
-                    </div>
-                    <div class="help-section-text">gemma3:4b and above supports images — screenshots will work with these models.</div>
-                </div>
-
-                <div class="help-section">
-                    <div class="help-warn">Avoid "thinking" models (e.g. deepseek-r1, qwq). Local inference is already slower — a thinking model adds extra delay before responding.</div>
-                </div>
-
-                <div class="help-section">
-                    <div class="help-section-title">Whisper</div>
-                    <div class="help-section-text">The Whisper speech-to-text model is downloaded automatically the first time you start a session. This is a one-time download.</div>
-                </div>
-
-                <hr class="help-divider" />
-
-                <div class="help-section">
-                    <div class="help-section-title">Computer hanging or slow?</div>
-                    <div class="help-section-text">Running models locally uses a lot of RAM and CPU. If your computer slows down or freezes, it's likely the LLM. Cloud mode gives you faster, better responses without any load on your machine.</div>
-                </div>
-
-                <button class="help-cloud-btn" @click=${() => { this._showLocalHelp = false; this._saveMode('cloud'); }}>Switch to Cloud</button>
-            </div>
-        `;
-    }
 }
 
 customElements.define('main-view', MainView);
