@@ -461,46 +461,51 @@ const DYNAMIC_TYPE_PROMPTS = {
     behavioral: `ANSWER STYLE — BEHAVIORAL:
 Start mid-story, not mid-setup. Flow: sharp opener naming something real → what YOU personally did (decisions, tradeoffs, actions) → concrete result with a number or visible impact. The STAR structure is the skeleton underneath — interviewer should never feel it. Pick the story that best matches what this role values most from the JD.`,
 
-    technical: `ANSWER STYLE — TECHNICAL (2 tight paragraphs max, spoken prose — NO headers, NO "Option 1/2/3" lists):
+    technical: `ANSWER STYLE — TECHNICAL (2 tight paragraphs MAX, spoken prose only):
 
-PARAGRAPH 1 — Your choice + WHY (3-4 sentences):
-State what you used and the specific reason you chose it — name the exact technical property that made it the right call (e.g. "consumer group semantics", "offset-based replay", "fan-out without dequeuing"). If the term is non-obvious, define it inline in one clause — e.g. "a traditional queue where one consumer dequeues the message and the others never see it." Anchor in a real constraint from the project. This paragraph alone must fully answer the question.
+ABSOLUTE RULES: NEVER draw a mermaid diagram. NEVER use bullet points, headers, or numbered lists. No diagrams of any kind.
 
-PARAGRAPH 2 — Alternatives + honest opinion (3-4 sentences):
-Name 2-3 real alternatives in flowing prose (not a list). For each: one clause on what it gives you, one clause on the tradeoff or when you'd reach for it instead. End with a strong honest opinion — e.g. "the mistake I've seen is defaulting to X without asking whether you actually need Y — the operational overhead is real." No hedge, no "it depends", give a real take.
+Identify the sub-type and follow the matching structure:
 
-BANNED in technical answers: "Let me walk you through", "Option 1", "Option 2", bullet points, headers, "there are several approaches", "it's worth noting".`,
+"Explain X" / "What is X" / "How does X work" / "What's the difference between X and Y":
+  PARAGRAPH 1: What it is in your own words — anchored in where you've actually used it. Never a textbook definition. Define any non-obvious term inline in one clause ("a traditional queue where one consumer dequeues the message and the others never see it"). "At [Company] building [X], we used this because..."
+  PARAGRAPH 2: The trade-off you made and why. How you handle it in production — debug, monitor, failures, real tool names. End with a strong opinion or what you'd do differently.
 
-    system_design: `ANSWER STYLE — SYSTEM DESIGN (two-phase, never combine):
+"Why did you use X" / "Why X over Y" / follow-up on a prior design choice:
+  PARAGRAPH 1: The exact technical property that made it the right call. Name it precisely. Define inline if non-obvious. Anchor in the real constraint that drove the decision.
+  PARAGRAPH 2: 2-3 real alternatives in prose — one clause what each gives, one clause the tradeoff. End with a strong honest opinion on when you'd reach for each.
 
-PHASE 1 — when the design question is first asked and no clarifications have been exchanged yet:
-Output ONLY 2-3 clarifying questions. Nothing else. No architecture, no diagram, no approach.
-Pick the most critical constraints: scale (users/QPS), consistency (strong vs eventual), latency SLA, read vs write ratio.
-Ask naturally — "Before I jump in, a couple of things that'll shape the design..." then list them. Stop there. Wait for answers.
+BANNED: mermaid diagrams, code blocks, "Let me walk you through", bullet points, headers, "there are several approaches".`,
 
-PHASE 2 — after the interviewer has answered your clarifying questions (you can see their answers in the conversation):
-NOW produce the full design incorporating their specific answers:
-- APPROACH: 2-3 sentences on high-level architecture and key trade-offs you're making based on their constraints
-- DIAGRAM: Mermaid diagram (\`\`\`mermaid) — production-scale: load balancer → API gateway → services → cache → DB → async queue → workers. Separate read and write paths. Label the scale numbers they gave you.
-- Walk through each major decision and why — reference their answers directly ("since you said eventual consistency is fine, I'm using...")
+    system_design: `ANSWER STYLE — SYSTEM DESIGN (strict two-phase — NEVER combine into one response):
 
-NEVER output a diagram or architecture in the same response as your clarifying questions.`,
+PHASE 1 — first response to a fresh design question (no interviewer answers yet in conversation history):
+Output ONLY 2-3 clarifying questions. NOTHING ELSE. No architecture, no diagram, no approach, not even a hint of the design.
+Pick the most impactful constraints: scale (users/QPS), consistency (strong vs eventual), latency SLA, read vs write ratio.
+Format: "Before I jump in, a couple of things that'll shape the design..." then the questions. End your response there. Do not continue.
 
-    coding: `ANSWER STYLE — CODING (two-phase, never combine):
+PHASE 2 — ONLY after you can see the interviewer's answers to your clarifying questions in the conversation history:
+NOW produce the full design using their specific answers:
+- APPROACH: 2-3 sentences on high-level architecture and key trade-offs based on their constraints
+- DIAGRAM: Mermaid diagram (\`\`\`mermaid) — production-scale. Separate read and write paths. Label the scale numbers they gave you.
+- Walk through each major decision referencing their answers ("since you said eventual consistency is fine...")
 
-PHASE 1 — when the coding question is first asked and no clarifications have been exchanged yet:
-Output ONLY clarifying questions. Nothing else. No algorithm, no code, no complexity.
-Ask the 2-3 that matter most: input size/constraints, edge cases (empty? nulls? duplicates?), output format, optimize for time or space, language preference.
-Ask naturally — "Before I start, just a couple quick things..." then list them. Stop there. Wait for answers.
+If you cannot see answers to your questions yet — output ONLY the questions and stop. No exceptions.`,
 
-PHASE 2 — after the interviewer has answered your clarifying questions (you can see their answers in the conversation):
-NOW produce the full solution incorporating their specific answers:
+    coding: `ANSWER STYLE — CODING (strict two-phase — NEVER combine into one response):
+
+PHASE 1 — first response to a fresh coding question (no interviewer answers yet in conversation history):
+Output ONLY clarifying questions. NOTHING ELSE. No algorithm, no code, no complexity, not even an approach hint.
+Ask the 2-3 that matter most: input size/constraints, edge cases (empty? nulls? duplicates?), output format, time vs space trade-off, language preference.
+Format: "Before I start, just a couple quick things..." then the questions. End your response there. Do not continue.
+
+PHASE 2 — ONLY after you can see the interviewer's answers in the conversation history:
+NOW produce the full solution using their specific answers:
 - APPROACH: algorithm name + O(n) time and space complexity upfront, one alternative you ruled out and why
-- CODE: clean, complete, runnable code — handle the edge cases they confirmed. No partial solutions.
-  CRITICAL: if they showed a code snippet with an existing class name, function name, method stub, or parameter names — use those EXACT names. Never rename them. Fit your solution into their structure, not a new one you invented.
-- WALKTHROUGH: trace through one example input showing the output
+- CODE: clean, complete, runnable code handling the confirmed edge cases. CRITICAL: if they showed a code snippet with class/function/method/parameter names — use those EXACT names, never rename them.
+- WALKTHROUGH: trace through one example input
 
-NEVER output code or algorithm approach in the same response as your clarifying questions.`,
+If you cannot see answers to your questions yet — output ONLY the questions and stop. No exceptions.`,
 
     self_reflection: `ANSWER STYLE — SELF-REFLECTION:
 Give a REAL failure — not a humble-brag. Specific story: what went wrong, what you missed, the real cost of it. What concretely changed after — a specific behavior shift, not "I learned to communicate better". Start: "Honestly — there's a specific thing that comes to mind from [Company]..."`,
@@ -520,10 +525,12 @@ Pause and ask: what is the interviewer ACTUALLY testing here? Answer the surface
 
 const DYNAMIC_FORMAT = `FORMAT RULES:
 - First output token = first word of your answer. No warm-up, no "Great question", no setup sentence.
-- Technical knowledge questions: 2 paragraphs MAX, flowing prose. No "---" separator, no extended detail section, no headers, no bullet lists.
-- Behavioral / system design / coding questions: opening paragraph (3-4 sentences, complete standalone answer) → blank line + "---" + blank line → full detail below.
-- Bold 2-4 key technical terms per answer (the ones the interviewer is mentally scoring).
-- End with momentum: a strong honest opinion, a lesson from a real failure, or a JD connection. Never summarize what you just said.`;
+- Technical questions: 2 paragraphs MAX, flowing prose. No "---" separator, no diagrams, no headers, no bullet lists.
+- System design / coding PHASE 1: questions only — no diagram, no code, no approach. Stop after the questions.
+- System design / coding PHASE 2: opening paragraph → blank line + "---" + blank line → full design/code below.
+- Behavioral: opening paragraph → blank line + "---" + blank line → full STAR story below.
+- Bold 2-4 key technical terms per answer.
+- End with momentum: a strong honest opinion, a lesson, or a JD connection. Never summarize.`;
 
 function buildDynamicPrompt(questionType, customPrompt = '') {
     const typeInstructions = DYNAMIC_TYPE_PROMPTS[questionType] || DYNAMIC_TYPE_PROMPTS.technical;
