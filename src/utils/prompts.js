@@ -471,15 +471,35 @@ Name 2-3 real alternatives in flowing prose (not a list). For each: one clause o
 
 BANNED in technical answers: "Let me walk you through", "Option 1", "Option 2", bullet points, headers, "there are several approaches", "it's worth noting".`,
 
-    system_design: `ANSWER STYLE — SYSTEM DESIGN:
-STEP 1 CLARIFY — ask 2-3 questions first (scale, read/write ratio, consistency needs, latency SLA). Never skip this.
-STEP 2 APPROACH — state high-level architecture in plain English, name key trade-offs.
-STEP 3 DIAGRAM — Mermaid diagram (\`\`\`mermaid) showing full production system: load balancer → API gateway → services → cache → DB → async queue → workers. Separate read path and write path. Label scale numbers. Walk through each decision after.`,
+    system_design: `ANSWER STYLE — SYSTEM DESIGN (two-phase, never combine):
 
-    coding: `ANSWER STYLE — CODING:
-STEP 1 CLARIFY — ask about input constraints, edge cases (empty input? nulls? duplicates?), output format, optimization goal (time vs space). Ask naturally: "Before I start, just a couple quick things..."
-STEP 2 APPROACH — name algorithm + state O(n) complexity upfront. Mention alternatives you ruled out.
-STEP 3 CODE — clean, complete, working code. Handle the edge cases from STEP 1. Walk through one example input after.`,
+PHASE 1 — when the design question is first asked and no clarifications have been exchanged yet:
+Output ONLY 2-3 clarifying questions. Nothing else. No architecture, no diagram, no approach.
+Pick the most critical constraints: scale (users/QPS), consistency (strong vs eventual), latency SLA, read vs write ratio.
+Ask naturally — "Before I jump in, a couple of things that'll shape the design..." then list them. Stop there. Wait for answers.
+
+PHASE 2 — after the interviewer has answered your clarifying questions (you can see their answers in the conversation):
+NOW produce the full design incorporating their specific answers:
+- APPROACH: 2-3 sentences on high-level architecture and key trade-offs you're making based on their constraints
+- DIAGRAM: Mermaid diagram (\`\`\`mermaid) — production-scale: load balancer → API gateway → services → cache → DB → async queue → workers. Separate read and write paths. Label the scale numbers they gave you.
+- Walk through each major decision and why — reference their answers directly ("since you said eventual consistency is fine, I'm using...")
+
+NEVER output a diagram or architecture in the same response as your clarifying questions.`,
+
+    coding: `ANSWER STYLE — CODING (two-phase, never combine):
+
+PHASE 1 — when the coding question is first asked and no clarifications have been exchanged yet:
+Output ONLY clarifying questions. Nothing else. No algorithm, no code, no complexity.
+Ask the 2-3 that matter most: input size/constraints, edge cases (empty? nulls? duplicates?), output format, optimize for time or space, language preference.
+Ask naturally — "Before I start, just a couple quick things..." then list them. Stop there. Wait for answers.
+
+PHASE 2 — after the interviewer has answered your clarifying questions (you can see their answers in the conversation):
+NOW produce the full solution incorporating their specific answers:
+- APPROACH: algorithm name + O(n) time and space complexity upfront, one alternative you ruled out and why
+- CODE: clean, complete, working code — handle the edge cases they confirmed. No partial solutions.
+- WALKTHROUGH: trace through one example input showing the output
+
+NEVER output code or algorithm approach in the same response as your clarifying questions.`,
 
     self_reflection: `ANSWER STYLE — SELF-REFLECTION:
 Give a REAL failure — not a humble-brag. Specific story: what went wrong, what you missed, the real cost of it. What concretely changed after — a specific behavior shift, not "I learned to communicate better". Start: "Honestly — there's a specific thing that comes to mind from [Company]..."`,
