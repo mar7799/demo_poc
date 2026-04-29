@@ -707,13 +707,22 @@ async function sendToGemma(transcription) {
 function queueForAnthropic(transcription) {
     if (!transcription || transcription.trim() === '') return;
 
+    // Abort any in-flight Anthropic stream so the new question isn't blocked
+    if (currentGroqAbortController) {
+        currentGroqAbortController.abort();
+        currentGroqAbortController = null;
+    }
+
     if (anthropicQueue.length >= 2) {
-        // Drop oldest pending — it's stale relative to what the interviewer just said
         anthropicQueue.shift();
     }
     anthropicQueue.push(transcription.trim());
 
     if (!anthropicProcessing) {
+        drainAnthropicQueue();
+    } else {
+        // Reset the processing flag so the drain loop picks up the new question
+        anthropicProcessing = false;
         drainAnthropicQueue();
     }
 }
