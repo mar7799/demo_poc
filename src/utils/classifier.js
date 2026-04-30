@@ -67,13 +67,33 @@ const PATTERNS = {
     ],
 };
 
-function classifyQuestion(text) {
+function classifyQuestion(text, conversationHistory = []) {
+    // Context-aware: if the last AI message was asking design/coding clarifications,
+    // the user is answering those questions — stay in that mode.
+    if (conversationHistory.length > 0) {
+        const lastAI = [...conversationHistory].reverse().find(m => m.role === 'assistant');
+        if (lastAI && lastAI.content) {
+            const c = lastAI.content;
+            // AI just asked system design clarifying questions
+            if (/before I (jump in|draw|design|start the design)/i.test(c) ||
+                /couple of things that.ll shape the design/i.test(c) ||
+                /what.s the expected (order|request|traffic|user) volume/i.test(c)) {
+                return 'system_design';
+            }
+            // AI just asked coding clarifying questions
+            if (/before I (start|write|code)/i.test(c) ||
+                /just a couple quick things/i.test(c) ||
+                /any language preference/i.test(c)) {
+                return 'coding';
+            }
+        }
+    }
+
     for (const [type, patterns] of Object.entries(PATTERNS)) {
         for (const pattern of patterns) {
             if (pattern.test(text)) return type;
         }
     }
-    // Default: technical — most common in software interviews
     return 'technical';
 }
 
