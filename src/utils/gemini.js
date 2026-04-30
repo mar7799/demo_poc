@@ -563,8 +563,9 @@ async function sendToGroq(transcription) {
     // Build a focused, type-specific prompt instead of the full monolithic prompt.
     // Only applies to interview profile — all other profiles use currentSystemPrompt as-is.
     let activeSystemPrompt = currentSystemPrompt || 'You are a helpful assistant.';
+    let questionType = 'technical';
     if (currentProfile === 'interview') {
-        const questionType = classifyQuestion(questionToAnswer, groqConversationHistory);
+        questionType = classifyQuestion(questionToAnswer, groqConversationHistory);
         activeSystemPrompt = buildDynamicPrompt(questionType, currentCustomPrompt || '');
         console.log(`[Classifier] Type: ${questionType} | Prompt: ${activeSystemPrompt.length} chars`);
     }
@@ -850,8 +851,9 @@ async function sendToAnthropic(transcription) {
 
     // Use dynamic classifier prompt — same as sendToGroq
     let activeSystemPrompt = currentSystemPrompt || 'You are a helpful assistant.';
+    let questionType = 'technical'; // default — must be declared here so maxTokensByType can use it
     if (currentProfile === 'interview') {
-        const questionType = classifyQuestion(questionToAnswer, groqConversationHistory);
+        questionType = classifyQuestion(questionToAnswer, groqConversationHistory);
         activeSystemPrompt = buildDynamicPrompt(questionType, currentCustomPrompt || '');
         console.log(`[Anthropic Classifier] Type: ${questionType} | Prompt: ${activeSystemPrompt.length} chars`);
     }
