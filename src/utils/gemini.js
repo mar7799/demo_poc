@@ -780,6 +780,14 @@ async function sendToAnthropic(transcription) {
 
     const questionToAnswer = intent;
 
+    // Use dynamic classifier prompt — same as sendToGroq
+    let activeSystemPrompt = currentSystemPrompt || 'You are a helpful assistant.';
+    if (currentProfile === 'interview') {
+        const questionType = classifyQuestion(questionToAnswer);
+        activeSystemPrompt = buildDynamicPrompt(questionType, currentCustomPrompt || '');
+        console.log(`[Anthropic Classifier] Type: ${questionType} | Prompt: ${activeSystemPrompt.length} chars`);
+    }
+
     groqConversationHistory.push({ role: 'user', content: questionToAnswer.trim() });
     if (groqConversationHistory.length > 20) {
         groqConversationHistory = groqConversationHistory.slice(-20);
@@ -809,7 +817,7 @@ async function sendToAnthropic(transcription) {
                 body: JSON.stringify({
                     model: 'claude-sonnet-4-6',
                     max_tokens: 4096,
-                    system: currentSystemPrompt || 'You are a helpful assistant.',
+                    system: activeSystemPrompt,
                     messages,
                     stream: true,
                 }),
