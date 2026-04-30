@@ -66,15 +66,68 @@ let lastProcessedIntent = '';
 let anthropicQueue = [];
 let anthropicProcessing = false;
 
+// Timestamp of when silence first started — used to enforce the hard max wait
+let silenceStartedAt = 0;
+const SILENCE_MAX_WAIT_MS = 3000; // fire regardless after 3s of continuous silence
+
+// Filler words / incomplete-speech endings — don't fire if text ends with these
+const FILLER_ENDINGS = new Set([
+    'so', 'yeah', 'yep', 'yup', 'basically', 'like', 'um', 'uh', 'hmm',
+    'and', 'but', 'or', 'well', 'right', 'okay', 'ok',
+    'the', 'a', 'an', 'actually', 'just', 'kind',
+]);
+
+// Question/topic indicators — likely a real question worth answering
+const QUESTION_SIGNALS = [
+    /\b(why|what|how|when|where|which|who)\b/i,
+    /\b(explain|describe|tell me|walk me through|design|build|implement|write|code)\b/i,
+    /\b(difference between|compare|pros and cons|trade.?off)\b/i,
+    /\b(can you|could you|would you|do you)\b/i,
+    /\?/,
+];
+
+function looksLikeCompleteQuestion(text) {
+    const t = text.trim();
+    const words = t.split(/\s+/).filter(Boolean);
+
+    // Too short — definitely not a complete question
+    if (words.length < 4) return false;
+
+    // Ends with a filler word — speaker is still thinking
+    const lastWord = words[words.length - 1].toLowerCase().replace(/[^a-z]/g, '');
+    if (FILLER_ENDINGS.has(lastWord)) return false;
+
+    // Check for question signals
+    const hasSignal = QUESTION_SIGNALS.some(p => p.test(t));
+    if (hasSignal) return true;
+
+    // Long enough with no trailing filler — assume complete
+    return words.length >= 8;
+}
+
 function cancelSilenceTimer() {
     if (transcriptionSilenceTimer) {
         clearTimeout(transcriptionSilenceTimer);
         transcriptionSilenceTimer = null;
     }
+    // New speech arrived — reset the silence clock
+    silenceStartedAt = 0;
 }
 
 function cancelProvisionalTimer() {
     // no-op: provisional tier removed; kept for call-site compatibility
+}
+
+function fireTranscription() {
+    const text = currentTranscription.trim();
+    if (!text) return;
+    silenceStartedAt = 0;
+    if (hasGroqKey()) {
+        sendToGroq(text);
+    } else {
+        sendToGemma(text);
+    }
+    currentTranscription = '';
 }
 
 function scheduleGroqTrigger() {
@@ -82,15 +135,30 @@ function scheduleGroqTrigger() {
 
     cancelSilenceTimer();
 
+    // Start tracking when silence began (only on first trigger, not on re-checks)
+    if (!silenceStartedAt) silenceStartedAt = Date.now();
+
     transcriptionSilenceTimer = setTimeout(() => {
         transcriptionSilenceTimer = null;
-        if (currentTranscription.trim() !== '') {
-            if (hasGroqKey()) {
-                sendToGroq(currentTranscription);
-            } else {
-                sendToGemma(currentTranscription);
-            }
-            currentTranscription = '';
+        const text = currentTranscription.trim();
+        if (!text) return;
+
+        const silenceDuration = Date.now() - silenceStartedAt;
+        const complete = looksLikeCompleteQuestion(text);
+
+        if (complete || silenceDuration >= SILENCE_MAX_WAIT_MS) {
+            // Either a real question or speaker has been silent long enough
+            console.log(`[VAD] Firing (complete=${complete}, silence=${silenceDuration}ms): "${text.substring(0, 60)}"`);
+            fireTranscription();
+        } else {
+            // Still looks like filler/incomplete — wait another tick
+            console.log(`[VAD] Waiting (incomplete, silence=${silenceDuration}ms): "${text.substring(0, 60)}"`);
+            // Don't reset silenceStartedAt — keep accumulating silence
+            const nextWait = Math.min(SILENCE_THRESHOLD_MS, SILENCE_MAX_WAIT_MS - silenceDuration);
+            transcriptionSilenceTimer = setTimeout(() => {
+                transcriptionSilenceTimer = null;
+                fireTranscription(); // hard fire after max wait
+            }, nextWait);
         }
     }, SILENCE_THRESHOLD_MS);
 }
