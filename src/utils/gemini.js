@@ -50,7 +50,7 @@ let systemAudioProc = null;
 // Silence detection: wait for a 1.2s pause after speech before triggering the LLM.
 // Resets on every new transcription chunk.
 let transcriptionSilenceTimer = null;
-const SILENCE_THRESHOLD_MS = 1200;
+const SILENCE_THRESHOLD_MS = 800;
 let sessionReadyAt = 0;
 const SESSION_WARMUP_MS = 2000;
 
@@ -536,7 +536,7 @@ async function sendToGroq(transcription) {
                 ],
                 stream: true,
                 temperature: 0.7,
-                max_tokens: 1024,
+                max_tokens: ['system_design', 'coding'].includes(questionType) ? 2000 : 600,
                 reasoning_effort: 'none'
             })
         });
@@ -799,7 +799,21 @@ async function sendToAnthropic(transcription) {
         content: m.content,
     }));
 
-    console.log(`[Anthropic] Sending to claude-sonnet-4-6: "${questionToAnswer.substring(0, 80)}..."`);
+    // Dynamic token limit — smaller for fast answers, larger only for code/diagrams
+    const maxTokensByType = {
+        technical: 400,
+        behavioral: 700,
+        self_reflection: 600,
+        culture: 500,
+        resume: 700,
+        situational: 600,
+        ambiguous: 400,
+        system_design: 2000,
+        coding: 2000,
+    };
+    const maxTokens = maxTokensByType[questionType] || 600;
+
+    console.log(`[Anthropic] Sending to claude-sonnet-4-6 (${questionType}, max_tokens=${maxTokens}): "${questionToAnswer.substring(0, 80)}..."`);
     sendToRenderer('update-status', 'Thinking...');
 
     try {
@@ -816,7 +830,7 @@ async function sendToAnthropic(transcription) {
                 signal: currentGroqAbortController.signal,
                 body: JSON.stringify({
                     model: 'claude-sonnet-4-6',
-                    max_tokens: 4096,
+                    max_tokens: maxTokens,
                     system: activeSystemPrompt,
                     messages,
                     stream: true,

@@ -494,10 +494,17 @@ const DYNAMIC_TYPE_PROMPTS = {
     coding: `This is a coding question.
 
     If this is the FIRST response (no answers in history yet):
-    Ask clarifying questions ONLY — no code, no approach, no assumptions. Cover: input constraints, edge cases, language preference. "Before I start, just a couple quick things..." Then stop completely. No code.
+    Ask clarifying questions ONLY — no code, no approach, no assumptions. Cover: input constraints, edge cases (null, empty, duplicates, negatives), language preference, optimize for time or space. "Before I start, just a couple quick things..." Then stop. No code.
 
     If the interviewer has answered (even partially) OR said "go ahead" OR you can see answers in history:
-    Write the solution NOW. State the algorithm and O(n) complexity in one sentence, then write clean complete runnable code. Use EXACT names from any existing snippet shown. Trace one example after. No more questions.`,
+    Write the solution NOW. Requirements for the code:
+    - OPTIMAL time and space complexity — not just any working solution. Think: can this be done in O(n) instead of O(n²)? O(1) space instead of O(n)? Use the right DSA pattern: two-pointer, sliding window, binary search, monotonic stack, BFS/DFS, dynamic programming, hash map for O(1) lookup, etc.
+    - State the algorithm name and complexity (time + space) in ONE sentence before the code
+    - Handle ALL edge cases: null/None input, empty array/string, single element, all duplicates, negative numbers, integer overflow where relevant
+    - Clean, production-quality code — correct variable names, no shortcuts that would fail edge cases
+    - Use EXACT class/function/parameter names from any existing snippet shown
+    - Trace one example showing the algorithm working
+    - If a brute force is O(n²) or worse, mention it and explain why you're choosing the optimal approach instead`,
 
     self_reflection: `Real failure — not a humble-brag. Specific: what went wrong, what you missed, the real cost. What concretely changed after — behavior, not platitude. Start: "Honestly — there's a specific thing from [Company] that comes to mind..."`,
 
