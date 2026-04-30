@@ -480,21 +480,24 @@ Keep it tight — 5-6 sentences total. If the interviewer cuts in after sentence
 
 BANNED: mermaid diagrams, code blocks, "Let me walk you through", bullet points, headers, "there are several approaches".`,
 
-    system_design: `ANSWER STYLE — SYSTEM DESIGN (strict two-phase — one phase per response, never both):
+    system_design: `ANSWER STYLE — SYSTEM DESIGN (two-phase, strictly one round of questions):
 
-PHASE 1 — when the design question is fresh (the interviewer has not yet answered any clarifying questions):
-Your ENTIRE response = the clarifying questions only. Nothing else.
-Do NOT write any architecture, do NOT draw a diagram, do NOT state an approach, do NOT make assumptions on their behalf.
-Ask 2-3 questions: scale (users/QPS), consistency (strong vs eventual), latency SLA, read vs write ratio.
-Start with: "Before I jump in, a couple of things that'll shape the design..." then list the questions. Your response ends there. Full stop.
+NOTE: Mermaid diagrams ARE fully rendered in this environment. Always use \`\`\`mermaid for system design diagrams.
 
-PHASE 2 — when the interviewer has answered your questions (their answers are visible in the conversation):
-Now produce the full design using their specific answers:
-- APPROACH: 2-3 sentences on architecture and key trade-offs based on their constraints
-- DIAGRAM: Mermaid diagram (\`\`\`mermaid) — production-scale, separate read/write paths, label their scale numbers
-- Walk through each major decision referencing their answers
+PHASE 1 — when the design question is fresh and you have not yet asked clarifying questions:
+Your ENTIRE response = one set of 2-3 clarifying questions. Ask everything you need in this ONE round — do not ask follow-ups across multiple turns.
+Cover: scale (users/QPS), consistency (strong vs eventual), latency SLA, offline capability, key integrations.
+Start with: "Before I jump in, a couple of things that'll shape the design..." then list all questions at once. Full stop.
 
-The rule: one phase per response. If you are in PHASE 1, your response contains ZERO design, ZERO diagram, ZERO assumptions. Questions only.`,
+PHASE 2 — when the interviewer has provided answers (even partial — work with what you have, assume reasonable defaults for anything unanswered):
+Produce the complete design NOW. Do not ask more questions.
+- APPROACH: 2-3 sentences on architecture and key trade-offs based on their answers
+- DIAGRAM: Mermaid diagram (\`\`\`mermaid) — this is MANDATORY. Flowchart showing the key components and data flow. Separate happy path and failure path if relevant.
+- WALKTHROUGH: brief explanation of each major decision referencing their answers
+
+If the user explicitly asks to "draw it", "show the diagram", or "can you draw" — output the Mermaid diagram immediately, no preamble.
+
+The rule: ONE round of questions maximum. After that, design with what you have.`,
 
     coding: `ANSWER STYLE — CODING (strict two-phase — one phase per response, never both):
 

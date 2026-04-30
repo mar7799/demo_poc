@@ -17,6 +17,10 @@ const PATTERNS = {
         /scale (to|for)\s+\d/i,
         /how (do|would) you scale/i,
         /system design/i,
+        // Explicit diagram/draw requests — always render the diagram
+        /\b(draw|diagram|visualize|show me)\b.*(it|this|that|design|system|architecture)/i,
+        /can you (draw|diagram|show|visualize)/i,
+        /\b(draw it|show it|diagram it)\b/i,
     ],
     coding: [
         /write (a|an|the)?\s*function/i,
