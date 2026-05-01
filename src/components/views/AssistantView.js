@@ -554,6 +554,7 @@ export class AssistantView extends LitElement {
         this._activePins = {};
         this._designCount = 0;
         this._codeCount = 0;
+        this._pinFocusIndex = -1;
     }
 
     getProfileNames() {
@@ -669,11 +670,15 @@ export class AssistantView extends LitElement {
             this.handleNextResponse = () => this.navigateToNextResponse();
             this.handleScrollUp = () => this.scrollResponseUp();
             this.handleScrollDown = () => this.scrollResponseDown();
+            this.handlePinLeft = () => this.navigatePinChip(-1);
+            this.handlePinRight = () => this.navigatePinChip(1);
 
             ipcRenderer.on('navigate-previous-response', this.handlePreviousResponse);
             ipcRenderer.on('navigate-next-response', this.handleNextResponse);
             ipcRenderer.on('scroll-response-up', this.handleScrollUp);
             ipcRenderer.on('scroll-response-down', this.handleScrollDown);
+            ipcRenderer.on('pin-navigate-left', this.handlePinLeft);
+            ipcRenderer.on('pin-navigate-right', this.handlePinRight);
         }
     }
 
@@ -687,6 +692,8 @@ export class AssistantView extends LitElement {
             if (this.handleNextResponse) ipcRenderer.removeListener('navigate-next-response', this.handleNextResponse);
             if (this.handleScrollUp) ipcRenderer.removeListener('scroll-response-up', this.handleScrollUp);
             if (this.handleScrollDown) ipcRenderer.removeListener('scroll-response-down', this.handleScrollDown);
+            if (this.handlePinLeft) ipcRenderer.removeListener('pin-navigate-left', this.handlePinLeft);
+            if (this.handlePinRight) ipcRenderer.removeListener('pin-navigate-right', this.handlePinRight);
         }
     }
 
@@ -891,6 +898,14 @@ export class AssistantView extends LitElement {
         const id = `pin-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
         this._pinnedRefs = [...this._pinnedRefs, { id, label, icon, type, content }];
+    }
+
+    navigatePinChip(direction) {
+        if (this._pinnedRefs.length === 0) return;
+        // Move focus index by direction (-1 left, +1 right), wrap around
+        this._pinFocusIndex = (this._pinFocusIndex + direction + this._pinnedRefs.length) % this._pinnedRefs.length;
+        const ref = this._pinnedRefs[this._pinFocusIndex];
+        if (ref) this._togglePin(ref.id);
     }
 
     _togglePin(id) {

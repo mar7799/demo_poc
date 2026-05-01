@@ -111,6 +111,8 @@ function getDefaultKeybinds() {
         captureToBuffer: isMac ? 'Cmd+Shift+C' : 'Ctrl+Shift+C',
         previousResponse: isMac ? 'Cmd+[' : 'Ctrl+[',
         nextResponse: isMac ? 'Cmd+]' : 'Ctrl+]',
+        pinLeft: isMac ? 'Cmd+Shift+[' : 'Ctrl+Shift+[',
+        pinRight: isMac ? 'Cmd+Shift+]' : 'Ctrl+Shift+]',
         scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
         scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
         emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
@@ -288,6 +290,29 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
             console.log(`Registered nextResponse: ${keybinds.nextResponse}`);
         } catch (error) {
             console.error(`Failed to register nextResponse (${keybinds.nextResponse}):`, error);
+        }
+    }
+
+    // Register pin navigation shortcuts
+    if (keybinds.pinLeft) {
+        try {
+            globalShortcut.register(keybinds.pinLeft, () => {
+                sendToRenderer('pin-navigate-left');
+            });
+            console.log(`Registered pinLeft: ${keybinds.pinLeft}`);
+        } catch (error) {
+            console.error(`Failed to register pinLeft (${keybinds.pinLeft}):`, error);
+        }
+    }
+
+    if (keybinds.pinRight) {
+        try {
+            globalShortcut.register(keybinds.pinRight, () => {
+                sendToRenderer('pin-navigate-right');
+            });
+            console.log(`Registered pinRight: ${keybinds.pinRight}`);
+        } catch (error) {
+            console.error(`Failed to register pinRight (${keybinds.pinRight}):`, error);
         }
     }
 
