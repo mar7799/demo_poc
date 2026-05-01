@@ -869,11 +869,18 @@ function handleShortcut(shortcutKey) {
         if (currentView === 'main') {
             metaMaxPro.element().handleStart();
         } else {
-            // If screenshots are buffered → solve all; otherwise single capture+analyze
-            if (capturedScreenshots.length > 0) {
-                analyzeWithCapturedScreenshots();
+            // Route through AssistantView.handleScreenAnswer — same logic as the button,
+            // uses capturedCount (UI state) so Capture + Solve are always in sync
+            const av = metaMaxProApp.shadowRoot?.querySelector('assistant-view');
+            if (av) {
+                av.handleScreenAnswer();
             } else {
-                captureManualScreenshot();
+                // fallback
+                if (capturedScreenshots.length > 0) {
+                    analyzeWithCapturedScreenshots();
+                } else {
+                    captureManualScreenshot();
+                }
             }
         }
     }
@@ -886,9 +893,15 @@ function handleShortcut(shortcutKey) {
 
     if (shortcutKey === 'ctrl+shift+c' || shortcutKey === 'cmd+shift+c') {
         if (currentView !== 'main') {
-            captureScreenshotToBuffer().then(count => {
-                metaMaxPro.updateCaptureCount(count);
-            });
+            const av = metaMaxProApp.shadowRoot?.querySelector('assistant-view');
+            if (av) {
+                // Route through AssistantView.handleCaptureScreenshot — same as button click
+                av.handleCaptureScreenshot();
+            } else {
+                captureScreenshotToBuffer().then(count => {
+                    metaMaxPro.updateCaptureCount(count);
+                });
+            }
         }
     }
 }
