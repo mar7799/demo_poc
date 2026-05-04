@@ -550,8 +550,9 @@ async function sendToGroq(transcription) {
         return;
     }
 
-    // Deduplicate: skip if same intent is already answered
-    if (intent === lastProcessedIntent) {
+    // Deduplicate: skip exact repeats — but never skip follow-up code/fix requests
+    const isCodeFollowUpGroq = /\b(full|complete|working|fix|entire|whole|finish|rest|continue|give me the code)\b/i.test(intent);
+    if (intent === lastProcessedIntent && !isCodeFollowUpGroq) {
         console.log('[Middleware] Duplicate intent, skipping');
         return;
     }
@@ -841,7 +842,10 @@ async function sendToAnthropic(transcription) {
         return;
     }
 
-    if (intent === lastProcessedIntent) {
+    // Skip exact duplicates — but never skip follow-up code/fix requests
+    // (user may repeat "give me the full code" multiple times legitimately)
+    const isCodeFollowUp = /\b(full|complete|working|fix|entire|whole|finish|rest|continue|give me the code)\b/i.test(intent);
+    if (intent === lastProcessedIntent && !isCodeFollowUp) {
         console.log('[Anthropic] Duplicate intent, skipping');
         return;
     }
