@@ -605,7 +605,7 @@ async function sendToGroq(transcription) {
                 ],
                 stream: true,
                 temperature: 0.7,
-                max_tokens: ['system_design', 'coding'].includes(questionType) ? 2000 : 600,
+                max_tokens: ['system_design', 'coding'].includes(questionType) ? 4096 : 700,
                 reasoning_effort: 'none'
             })
         });
@@ -869,17 +869,17 @@ async function sendToAnthropic(transcription) {
         content: m.content,
     }));
 
-    // Dynamic token limit — smaller for fast answers, larger only for code/diagrams
+    // Dynamic token limit — smaller for fast conversational answers, full budget for code/diagrams
     const maxTokensByType = {
-        technical: 400,
-        behavioral: 700,
+        technical: 500,
+        behavioral: 800,
         self_reflection: 600,
         culture: 500,
-        resume: 700,
+        resume: 800,
         situational: 600,
-        ambiguous: 400,
-        system_design: 2000,
-        coding: 2000,
+        ambiguous: 500,
+        system_design: 4096,
+        coding: 4096,
     };
     const maxTokens = maxTokensByType[questionType] || 600;
 

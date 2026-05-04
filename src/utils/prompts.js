@@ -510,6 +510,7 @@ const DYNAMIC_TYPE_PROMPTS = {
 
     If the interviewer has answered (even partially) OR said "go ahead" OR you can see answers in history:
     Write the solution NOW. Requirements for the code:
+    - CRITICAL: output the COMPLETE code in one response — never truncate, never say "rest of code follows" or stop mid-function. The full solution must be present.
     - OPTIMAL time and space complexity — not just any working solution. Think: can this be done in O(n) instead of O(n²)? O(1) space instead of O(n)? Use the right DSA pattern: two-pointer, sliding window, binary search, monotonic stack, BFS/DFS, dynamic programming, hash map for O(1) lookup, etc.
     - State the algorithm name and complexity (time + space) in ONE sentence before the code
     - Handle ALL edge cases: null/None input, empty array/string, single element, all duplicates, negative numbers, integer overflow where relevant
