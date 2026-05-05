@@ -258,6 +258,19 @@ function saveScreenAnalysis(prompt, response, model) {
 
     screenAnalysisHistory.push(analysisEntry);
 
+    // Bridge screen analysis into voice conversation history so the voice AI
+    // can explain, discuss, and answer follow-up questions about the code/answer.
+    // Keeps only the most recent screen result visible to avoid history bloat.
+    const screenSummary = response.trim().substring(0, 1200);
+    // Remove any previous screen injection (keeps history clean)
+    const prevIdx = groqConversationHistory.findIndex(m => m._fromScreen);
+    if (prevIdx !== -1) groqConversationHistory.splice(prevIdx, 1);
+    groqConversationHistory.push({
+        role: 'assistant',
+        content: `[Code/Answer from screen analysis]\n${screenSummary}`,
+        _fromScreen: true,
+    });
+
     // Write directly to disk from main process
     persistSession(currentSessionId, { screenAnalysisHistory });
     console.log('Saved screen analysis:', analysisEntry);
@@ -1504,6 +1517,27 @@ async function sendMultipleImagesToGeminiHttp(images, prompt) {
     }
 }
 
+// Builds an enriched prompt for screen analysis that includes context from
+// the previous screen result so the model builds on prior attempts instead
+// of starting over with a completely different approach.
+function buildEnrichedScreenPrompt(basePrompt) {
+    if (screenAnalysisHistory.length === 0) return basePrompt;
+
+    const last = screenAnalysisHistory[screenAnalysisHistory.length - 1];
+    const prevResponse = last.response.substring(0, 800);
+
+    return `${basePrompt}
+
+IMPORTANT CONTEXT — PREVIOUS ATTEMPT:
+Your last response to this problem was:
+---
+${prevResponse}
+---
+If the previous approach was correct, refine and complete it.
+If it was wrong or incomplete, explain why and provide the corrected complete solution.
+Do NOT start over with a completely different algorithm without explaining why the previous one failed.`;
+}
+
 function setupGeminiIpcHandlers(geminiSessionRef) {
     // Store the geminiSessionRef globally for reconnection access
     global.geminiSessionRef = geminiSessionRef;
@@ -1671,6 +1705,10 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return { success: false, error: 'Image buffer too small' };
             }
 
+            // If there was a previous screen analysis in this session, prepend it
+            // so the model builds on the prior attempt rather than starting fresh
+            const enrichedPrompt = buildEnrichedScreenPrompt(prompt);
+
             process.stdout.write('!');
 
             if (currentProviderMode === 'cloud') {
@@ -1682,17 +1720,17 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             }
 
             if (currentProviderMode === 'local') {
-                const result = await getLocalAi().sendLocalImage(data, prompt);
+                const result = await getLocalAi().sendLocalImage(data, enrichedPrompt);
                 return result;
             }
 
             if (currentProviderMode === 'anthropic') {
-                const result = await sendImageToAnthropicHttp([data], prompt);
+                const result = await sendImageToAnthropicHttp([data], enrichedPrompt);
                 return result;
             }
 
             // Use HTTP API instead of realtime session
-            const result = await sendImageToGeminiHttp(data, prompt);
+            const result = await sendImageToGeminiHttp(data, enrichedPrompt);
             return result;
         } catch (error) {
             console.error('Error sending image:', error);
@@ -1705,6 +1743,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             if (!images || !Array.isArray(images) || images.length === 0) {
                 return { success: false, error: 'No images provided' };
             }
+            const enrichedPrompt = buildEnrichedScreenPrompt(prompt);
 
             if (currentProviderMode === 'cloud') {
                 // Cloud only supports single image - send the first one
@@ -1713,16 +1752,16 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             }
 
             if (currentProviderMode === 'local') {
-                const result = await getLocalAi().sendLocalImage(images[0], prompt);
+                const result = await getLocalAi().sendLocalImage(images[0], enrichedPrompt);
                 return result;
             }
 
             if (currentProviderMode === 'anthropic') {
-                const result = await sendImageToAnthropicHttp(images, prompt);
+                const result = await sendImageToAnthropicHttp(images, enrichedPrompt);
                 return result;
             }
 
-            const result = await sendMultipleImagesToGeminiHttp(images, prompt);
+            const result = await sendMultipleImagesToGeminiHttp(images, enrichedPrompt);
             return result;
         } catch (error) {
             console.error('Error sending multiple images:', error);
