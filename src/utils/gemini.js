@@ -1541,18 +1541,20 @@ function buildEnrichedScreenPrompt(basePrompt) {
     if (screenAnalysisHistory.length === 0) return basePrompt;
 
     const last = screenAnalysisHistory[screenAnalysisHistory.length - 1];
-    const prevResponse = last.response.substring(0, 800);
+    const prevResponse = last.response.substring(0, 1200);
 
     return `${basePrompt}
 
-IMPORTANT CONTEXT — PREVIOUS ATTEMPT:
-Your last response to this problem was:
+━━━ PREVIOUS ATTEMPT CONTEXT ━━━
+Your previous response was:
 ---
 ${prevResponse}
 ---
-If the previous approach was correct, refine and complete it.
-If it was wrong or incomplete, explain why and provide the corrected complete solution.
-Do NOT start over with a completely different algorithm without explaining why the previous one failed.`;
+INSTRUCTIONS FOR THIS ATTEMPT:
+- If the screenshot shows test failures (X/Y passing): identify WHICH tests fail, trace through the previous code with those inputs, fix the exact bug — do not rewrite from scratch
+- If the previous code was incomplete/truncated: continue from where it left off and produce the full complete solution
+- If the previous approach was fundamentally wrong: explain why in one sentence, then provide the correct approach
+- NEVER produce a completely different algorithm without explicitly justifying why the previous one cannot work`;
 }
 
 function setupGeminiIpcHandlers(geminiSessionRef) {

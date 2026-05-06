@@ -599,52 +599,82 @@ async function captureScreenshot(imageQuality = 'medium', isManual = false) {
     );
 }
 
-const MANUAL_SCREENSHOT_PROMPT = `Help me on this page, give me the answer no bs, complete answer.
-So if its a code question, give me the approach in few bullet points, then the entire code. Also if theres anything else i need to know, tell me.
-If its a question about the website, give me the answer no bs, complete answer.
-If its a mcq question, give me the answer no bs, complete answer.`;
+const MANUAL_SCREENSHOT_PROMPT = `You are an expert software engineer. Solve exactly what's on screen — no fluff, no coaching, just the answer.
+- Coding/algorithm → optimal algorithm (state time+space complexity), complete working code, all edge cases, copy-paste ready
+- Bug fix → identify every bug, show before/after for each fix
+- MCQ → answer letter(s) + one-line reason
+- Theory/config → direct answer
+If something is cut off or you need more context, say exactly what to show next.`;
 
-const CODING_EXERCISE_PROMPT = `You are helping me answer the question shown in the screenshot(s). Read ALL screenshots carefully before responding.
+const CODING_EXERCISE_PROMPT = `You are an expert software engineer solving a coding assessment. Study ALL screenshots carefully before writing a single line.
 
-STEP 1 — Identify the question type from the screenshot:
-- CODING: has a code editor, asks to write/complete a function or class, shows input/output examples
-- MCQ: multiple choice — select one or more correct options
-- MATCHING / DRAG-DROP: match items from one column to another
-- THEORY / CONFIG: explain a concept, identify correct behavior, choose the right config parameter
-- OTHER: anything else — describe what you see and answer directly
+━━━ STEP 1: ASSESS WHAT YOU CAN SEE ━━━
+Do you have the COMPLETE problem? Check:
+- Full problem statement (not cut off)
+- All method/class signatures
+- Test cases or expected input/output examples
+- Any constraints or edge case notes
 
-STEP 2 — Answer using the correct format for the type:
+If something critical is missing → state exactly what you need to see ("Please scroll down to show the rest of the problem / test cases / method signatures") and stop. Do not guess at incomplete requirements.
 
-If CODING:
-**Language:** [detected language]
-**Approach:** [1-2 sentences — algorithm choice and why, time/space complexity]
-**Solution:**
+━━━ STEP 2: IDENTIFY THE TYPE ━━━
+- CODING PROBLEM → go to Step 3
+- MCQ → Answer: [letter] — [text]. Why: [1-2 sentences]
+- MATCHING/DRAG-DROP → list every pair with reasoning
+- BUG FIX → go to Step 3B
+- THEORY/CONFIG → direct answer + reason
+
+━━━ STEP 3: FOR CODING PROBLEMS ━━━
+
+A. READ THE TEST CASES FIRST — before designing anything
+Test cases contain hidden requirements the problem statement doesn't mention:
+- What order are arguments passed? (e.g. updated stock first? alphabetical?)
+- Is the comparison strict (>) or non-strict (>=)?
+- Do unregistered/unknown inputs get ignored or counted?
+- What exactly does the output format look like? (prefix numbers, separators?)
+Extract every implicit requirement from the test cases. List them.
+
+B. CHOOSE THE OPTIMAL ALGORITHM
+- What is the brute force? What is its complexity?
+- Can you do better? Use the right pattern: two-pointer, sliding window, binary search, interval DP, monotonic stack, BFS/DFS, hash map, RLE compression, etc.
+- State: Time O(?), Space O(?)
+
+C. WRITE THE COMPLETE SOLUTION
+Language: [detected language]
+Algorithm: [name + complexity]
+
 \`\`\`[language]
-[COMPLETE code — every method fully implemented, every closing brace present, every edge case handled. NO placeholders, NO "// TODO", NO "// rest of implementation", NO truncation. The code must compile and pass all test cases as-is.]
+[EVERY method fully written — no placeholders, no TODO, no "// similar to above", no truncation.
+Every brace closed. Every edge case handled. Compiles and submits as-is.
+Use the EXACT class/method/variable names from the screenshots.]
 \`\`\`
-CRITICAL rules for coding:
-1. Use the EXACT class/method/function/parameter names shown in the screenshot — never rename them
-2. Every line of code must be real, working code — no placeholder comments
-3. Handle ALL edge cases visible in the test cases shown
-4. Choose the OPTIMAL algorithm — best time and space complexity possible
-5. The solution must be complete enough to copy-paste directly into the editor and submit
 
-If MCQ:
-**Answer:** [option letter(s)] — [full option text]
-**Why:** [1–2 sentences — why this is correct and why the others are wrong]
+━━━ STEP 3B: FOR BUG FIX PROBLEMS ━━━
+Read every source file shown. For each bug:
+- File + method name
+- What the bug is (wrong operator, wrong variable, wrong condition, swapped args)
+- The exact fix (show before/after)
+Fix ALL bugs before the test results are shown — don't wait for failures.
 
-If MATCHING / DRAG-DROP:
-**Matches:**
-- [Item] → [Correct match]
-- [Item] → [Correct match]
-(list every pair)
-**Why:** [1–2 sentences explaining the key distinction]
+━━━ STEP 4: IF TEST FAILURES ARE SHOWN ━━━
+If the screenshot shows X/Y tests passing with failures listed:
+- Name each failing test
+- Trace through your code with the failing test's input
+- Identify the exact line/condition causing the wrong output
+- Fix it precisely — do not rewrite the whole solution from scratch
+- Output only the corrected complete code
 
-If THEORY / CONFIG:
-**Answer:** [direct, complete answer]
-**Why:** [1–2 sentences — the specific reason, not a generic explanation]
+━━━ STANDARDS ━━━
+- Production-quality code: clean variable names, no magic numbers, proper null/edge-case handling
+- Never rename existing method/class/parameter names
+- No coaching notes, no "here's what to say" — just the solution`;
 
-No partial answers. Be direct. Do not restate the question.`;
+const MANUAL_SCREENSHOT_PROMPT_CODING = `You are an expert software engineer. Look at this screenshot and solve whatever is shown:
+- Coding problem → complete working code, optimal algorithm, best time/space complexity
+- MCQ → direct answer with brief reason
+- Bug → identify and fix all bugs
+- Theory → direct answer
+No fluff. Copy-paste ready.`;
 
 // Shared helper: initialise video+canvas and return a base64 JPEG frame
 async function _captureFrameAsBase64(quality = 'medium') {
