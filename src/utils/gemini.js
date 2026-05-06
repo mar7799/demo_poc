@@ -635,18 +635,20 @@ async function sendToGroq(transcription) {
         const decoder = new TextDecoder();
         let fullText = '';
         let inThinkBlock = false;
+        let groqSseBuffer = '';
 
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n').filter(line => line.trim() !== '');
+            groqSseBuffer += decoder.decode(value, { stream: true });
+            const lines = groqSseBuffer.split('\n');
+            groqSseBuffer = lines.pop(); // keep incomplete line
 
             for (const line of lines) {
                 if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
-                    if (data === '[DONE]') continue;
+                    const data = line.slice(6).trim();
+                    if (!data || data === '[DONE]') continue;
 
                     try {
                         const json = JSON.parse(data);
@@ -941,18 +943,20 @@ async function sendToAnthropic(transcription) {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let fullText = '';
+        let anthropicSseBuffer = '';
 
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n').filter(l => l.trim() !== '');
+            anthropicSseBuffer += decoder.decode(value, { stream: true });
+            const lines = anthropicSseBuffer.split('\n');
+            anthropicSseBuffer = lines.pop(); // keep any incomplete line
 
             for (const line of lines) {
                 if (!line.startsWith('data: ')) continue;
-                const data = line.slice(6);
-                if (data === '[DONE]') continue;
+                const data = line.slice(6).trim();
+                if (!data || data === '[DONE]') continue;
 
                 try {
                     const json = JSON.parse(data);
@@ -960,9 +964,7 @@ async function sendToAnthropic(transcription) {
                         fullText += json.delta.text;
                         sendToRenderer('update-response', fullText);
                     }
-                } catch (_) {
-                    // skip malformed SSE lines
-                }
+                } catch (_) {}
             }
         }
 
@@ -1444,15 +1446,21 @@ async function sendImageToAnthropicHttp(images, prompt) {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let fullText = '';
+        let sseBuffer = ''; // buffer for partial SSE lines split across HTTP chunks
 
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            for (const line of chunk.split('\n')) {
+            sseBuffer += decoder.decode(value, { stream: true });
+
+            // Process complete lines only — keep any incomplete line in the buffer
+            const lines = sseBuffer.split('\n');
+            sseBuffer = lines.pop(); // last element may be incomplete, put back
+
+            for (const line of lines) {
                 if (!line.startsWith('data: ')) continue;
-                const data = line.slice(6);
-                if (data === '[DONE]' || data.trim() === '') continue;
+                const data = line.slice(6).trim();
+                if (!data || data === '[DONE]') continue;
                 try {
                     const json = JSON.parse(data);
                     const token = json.delta?.text || '';
@@ -1462,6 +1470,15 @@ async function sendImageToAnthropicHttp(images, prompt) {
                     }
                 } catch {}
             }
+        }
+
+        // Process any remaining buffered line
+        if (sseBuffer.startsWith('data: ')) {
+            try {
+                const json = JSON.parse(sseBuffer.slice(6).trim());
+                const token = json.delta?.text || '';
+                if (token) fullText += token;
+            } catch {}
         }
 
         saveScreenAnalysis(prompt, fullText, 'claude-sonnet-4-6');

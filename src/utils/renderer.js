@@ -617,13 +617,17 @@ STEP 2 — Answer using the correct format for the type:
 
 If CODING:
 **Language:** [detected language]
-**Approach:**
-- [max 3 bullet points — strategy only, no fluff]
+**Approach:** [1-2 sentences — algorithm choice and why, time/space complexity]
 **Solution:**
 \`\`\`[language]
-[complete, working, copy-paste ready code that handles all edge cases shown]
+[COMPLETE code — every method fully implemented, every closing brace present, every edge case handled. NO placeholders, NO "// TODO", NO "// rest of implementation", NO truncation. The code must compile and pass all test cases as-is.]
 \`\`\`
-CRITICAL for coding: if the screenshot shows an existing code snippet (a class, a main method, a function stub, a method call like solve() or calculate()), you MUST use the EXACT same class name, method/function name, and parameter names shown. Never rename them. Write your solution to fit into the existing structure, not replace it.
+CRITICAL rules for coding:
+1. Use the EXACT class/method/function/parameter names shown in the screenshot — never rename them
+2. Every line of code must be real, working code — no placeholder comments
+3. Handle ALL edge cases visible in the test cases shown
+4. Choose the OPTIMAL algorithm — best time and space complexity possible
+5. The solution must be complete enough to copy-paste directly into the editor and submit
 
 If MCQ:
 **Answer:** [option letter(s)] — [full option text]
