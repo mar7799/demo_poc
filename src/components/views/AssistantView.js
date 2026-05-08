@@ -668,10 +668,12 @@ export class AssistantView extends LitElement {
 
             this.handlePreviousResponse = () => this.navigateToPreviousResponse();
             this.handleNextResponse = () => this.navigateToNextResponse();
-            this.handleScrollUp = () => this.scrollResponseUp();
-            this.handleScrollDown = () => this.scrollResponseDown();
+            // Contextual scroll — pinned panels when any open, main response otherwise
+            this.handleScrollUp = () => this.contextualScrollUp();
+            this.handleScrollDown = () => this.contextualScrollDown();
             this.handlePinLeft = () => this.navigatePinChip(-1);
             this.handlePinRight = () => this.navigatePinChip(1);
+            this.handlePinCloseAll = () => this.closeAllPins();
 
             ipcRenderer.on('navigate-previous-response', this.handlePreviousResponse);
             ipcRenderer.on('navigate-next-response', this.handleNextResponse);
@@ -679,6 +681,7 @@ export class AssistantView extends LitElement {
             ipcRenderer.on('scroll-response-down', this.handleScrollDown);
             ipcRenderer.on('pin-navigate-left', this.handlePinLeft);
             ipcRenderer.on('pin-navigate-right', this.handlePinRight);
+            ipcRenderer.on('pin-close-all', this.handlePinCloseAll);
         }
     }
 
@@ -694,6 +697,7 @@ export class AssistantView extends LitElement {
             if (this.handleScrollDown) ipcRenderer.removeListener('scroll-response-down', this.handleScrollDown);
             if (this.handlePinLeft) ipcRenderer.removeListener('pin-navigate-left', this.handlePinLeft);
             if (this.handlePinRight) ipcRenderer.removeListener('pin-navigate-right', this.handlePinRight);
+            if (this.handlePinCloseAll) ipcRenderer.removeListener('pin-close-all', this.handlePinCloseAll);
         }
     }
 
@@ -902,10 +906,41 @@ export class AssistantView extends LitElement {
 
     navigatePinChip(direction) {
         if (this._pinnedRefs.length === 0) return;
-        // Move focus index by direction (-1 left, +1 right), wrap around
         this._pinFocusIndex = (this._pinFocusIndex + direction + this._pinnedRefs.length) % this._pinnedRefs.length;
         const ref = this._pinnedRefs[this._pinFocusIndex];
         if (ref) this._togglePin(ref.id);
+    }
+
+    closeAllPins() {
+        this._activePins = {};
+        this._pinFocusIndex = -1;
+        this.requestUpdate();
+    }
+
+    contextualScrollUp() {
+        const hasActivePins = Object.values(this._activePins).some(Boolean);
+        if (hasActivePins) {
+            const panels = this.shadowRoot.querySelector('.pinned-panels');
+            if (panels) {
+                const amount = panels.clientHeight * 0.4;
+                panels.scrollTop = Math.max(0, panels.scrollTop - amount);
+            }
+        } else {
+            this.scrollResponseUp();
+        }
+    }
+
+    contextualScrollDown() {
+        const hasActivePins = Object.values(this._activePins).some(Boolean);
+        if (hasActivePins) {
+            const panels = this.shadowRoot.querySelector('.pinned-panels');
+            if (panels) {
+                const amount = panels.clientHeight * 0.4;
+                panels.scrollTop = Math.min(panels.scrollHeight - panels.clientHeight, panels.scrollTop + amount);
+            }
+        } else {
+            this.scrollResponseDown();
+        }
     }
 
     _togglePin(id) {

@@ -113,6 +113,7 @@ function getDefaultKeybinds() {
         nextResponse: isMac ? 'Cmd+]' : 'Ctrl+]',
         pinLeft: isMac ? 'Cmd+Shift+[' : 'Ctrl+Shift+[',
         pinRight: isMac ? 'Cmd+Shift+]' : 'Ctrl+Shift+]',
+        pinCloseAll: isMac ? 'Cmd+Shift+\\' : 'Ctrl+Shift+\\',
         scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
         scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
         emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
@@ -313,6 +314,18 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
             console.log(`Registered pinRight: ${keybinds.pinRight}`);
         } catch (error) {
             console.error(`Failed to register pinRight (${keybinds.pinRight}):`, error);
+        }
+    }
+
+    // Register close-all-pins shortcut
+    if (keybinds.pinCloseAll) {
+        try {
+            globalShortcut.register(keybinds.pinCloseAll, () => {
+                sendToRenderer('pin-close-all');
+            });
+            console.log(`Registered pinCloseAll: ${keybinds.pinCloseAll}`);
+        } catch (error) {
+            console.error(`Failed to register pinCloseAll (${keybinds.pinCloseAll}):`, error);
         }
     }
 
