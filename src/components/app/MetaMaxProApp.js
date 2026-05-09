@@ -437,6 +437,16 @@ export class MetaMaxProApp extends LitElement {
             ipcRenderer.on('click-through-toggled', (_, isEnabled) => { this._isClickThrough = isEnabled; });
             ipcRenderer.on('reconnect-failed', (_, data) => this.addNewResponse(data.message));
             ipcRenderer.on('whisper-downloading', (_, downloading) => { this._whisperDownloading = downloading; });
+
+            // Remote control: helper sent a message to display on screen
+            ipcRenderer.on('helper-message', (_, { text }) => this.addHelperResponse(text));
+            // Remote control: copy current response to clipboard
+            ipcRenderer.on('remote-copy-to-clipboard', () => this.copyCurrentResponseToClipboard());
+            // Remote control: toggle a specific pin
+            ipcRenderer.on('remote-toggle-pin', (_, { id }) => {
+                const av = this.shadowRoot?.querySelector('assistant-view');
+                if (av) av._togglePin(id);
+            });
         }
     }
 
@@ -451,6 +461,9 @@ export class MetaMaxProApp extends LitElement {
             ipcRenderer.removeAllListeners('click-through-toggled');
             ipcRenderer.removeAllListeners('reconnect-failed');
             ipcRenderer.removeAllListeners('whisper-downloading');
+            ipcRenderer.removeAllListeners('helper-message');
+            ipcRenderer.removeAllListeners('remote-copy-to-clipboard');
+            ipcRenderer.removeAllListeners('remote-toggle-pin');
         }
     }
 
@@ -498,6 +511,36 @@ export class MetaMaxProApp extends LitElement {
         }
         this._awaitingNewResponse = false;
         this.requestUpdate();
+        this._syncRemoteState();
+    }
+
+    // Helper message from remote control — marked with a prefix so AssistantView renders it distinctly
+    addHelperResponse(text) {
+        const marked = `\u{1F4AC}__HELPER__\n${text}`;
+        this.addNewResponse(marked);
+    }
+
+    copyCurrentResponseToClipboard() {
+        const response = this.responses[this.currentResponseIndex];
+        if (!response) return;
+        // Strip helper marker before copying
+        const clean = response.replace(/\u{1F4AC}__HELPER__\n/u, '');
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(clean).catch(() => {});
+        }
+    }
+
+    // Sync current response text + position to remote helpers
+    _syncRemoteState() {
+        if (!window.require) return;
+        const { ipcRenderer } = window.require('electron');
+        const text = this.responses[this.currentResponseIndex] || '';
+        const clean = text.replace(/\u{1F4AC}__HELPER__\n/u, '');
+        ipcRenderer.send('remote-sync-responses', {
+            text: clean,
+            index: this.currentResponseIndex,
+            count: this.responses.length,
+        });
     }
 
     updateCurrentResponse(response) {
@@ -671,6 +714,7 @@ export class MetaMaxProApp extends LitElement {
         this.currentResponseIndex = e.detail.index;
         this.shouldAnimateResponse = false;
         this.requestUpdate();
+        this._syncRemoteState();
     }
 
     handleOnboardingComplete() {

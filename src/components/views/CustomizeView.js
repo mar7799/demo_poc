@@ -193,6 +193,8 @@ export class CustomizeView extends LitElement {
         isRestoring: { type: Boolean },
         clearStatusMessage: { type: String },
         clearStatusType: { type: String },
+        _remoteRunning: { type: Boolean, state: true },
+        _remoteUrl: { type: String, state: true },
     };
 
     constructor() {
@@ -216,7 +218,35 @@ export class CustomizeView extends LitElement {
         this.audioMode = 'speaker_only';
         this.customPrompt = '';
         this.theme = 'dark';
+        this._remoteRunning = false;
+        this._remoteUrl = null;
         this._loadFromStorage();
+        this._checkRemoteStatus();
+    }
+
+    async _checkRemoteStatus() {
+        if (!window.require) return;
+        const { ipcRenderer } = window.require('electron');
+        const status = await ipcRenderer.invoke('remote-control-status');
+        this._remoteRunning = status.running;
+        this._remoteUrl = status.url;
+    }
+
+    async _toggleRemote() {
+        if (!window.require) return;
+        const { ipcRenderer } = window.require('electron');
+        if (this._remoteRunning) {
+            await ipcRenderer.invoke('remote-control-stop');
+            this._remoteRunning = false;
+            this._remoteUrl = null;
+        } else {
+            const result = await ipcRenderer.invoke('remote-control-start');
+            if (result.success) {
+                this._remoteRunning = true;
+                this._remoteUrl = result.url;
+            }
+        }
+        this.requestUpdate();
     }
 
     getThemes() {
@@ -716,6 +746,33 @@ export class CustomizeView extends LitElement {
         `;
     }
 
+    renderRemoteControlSection() {
+        return html`
+            <section class="surface">
+                <div class="surface-title">Remote Control</div>
+                <div style="font-size:var(--font-size-xs);color:var(--text-muted);margin-bottom:var(--space-sm);line-height:1.5;">
+                    Let a helper on another device (same WiFi) navigate responses and send messages to your screen.
+                </div>
+                <div class="toggle-row">
+                    <input class="toggle-input" type="checkbox" id="remoteToggle"
+                        .checked=${this._remoteRunning}
+                        @change=${this._toggleRemote}
+                    />
+                    <label class="toggle-label" for="remoteToggle">
+                        ${this._remoteRunning ? 'Remote control active' : 'Enable remote control'}
+                    </label>
+                </div>
+                ${this._remoteRunning && this._remoteUrl ? html`
+                    <div style="margin-top:var(--space-sm);padding:var(--space-sm);background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);">
+                        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Helper opens this URL on their device</div>
+                        <div style="font-family:var(--font-mono);font-size:var(--font-size-sm);color:var(--accent);word-break:break-all;">${this._remoteUrl}</div>
+                        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">Must be on the same WiFi network</div>
+                    </div>
+                ` : ''}
+            </section>
+        `;
+    }
+
     render() {
         return html`
             <div class="unified-page">
@@ -725,6 +782,7 @@ export class CustomizeView extends LitElement {
                     ${this.renderLanguageSection()}
                     ${this.renderAppearanceSection()}
                     ${this.renderKeyboardSection()}
+                    ${this.renderRemoteControlSection()}
                     ${this.renderPrivacySection()}
                 </div>
             </div>

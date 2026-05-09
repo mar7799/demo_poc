@@ -7,6 +7,7 @@ const { classifyQuestion } = require('./classifier');
 const { getAvailableModel, incrementLimitCount, getApiKey, getGroqApiKey, getAnthropicApiKey, incrementCharUsage, getModelForToday, saveSession: persistSession } = require('../storage');
 const { connectCloud, sendCloudAudio, sendCloudText, sendCloudImage, closeCloud, setOnTurnComplete } = require('./cloud');
 const { startWhisperVAD, stopWhisperVAD, processAudioChunk: processWhisperChunk } = require('./whisper');
+const remoteControl = require('./remoteControl');
 
 // Lazy-loaded to avoid circular dependency (localai.js imports from gemini.js)
 let _localai = null;
@@ -175,6 +176,20 @@ function sendToRenderer(channel, data) {
     const windows = BrowserWindow.getAllWindows();
     if (windows.length > 0) {
         windows[0].webContents.send(channel, data);
+    }
+}
+
+// Push current response text + index to remote helpers
+function syncRemoteResponse(text, index, count) {
+    if (remoteControl.isRunning()) {
+        remoteControl.updateState({ response: text || '', responseIndex: index || 0, responseCount: count || 0 });
+    }
+}
+
+// Push pinned refs state to remote helpers
+function syncRemotePins(pinnedRefs) {
+    if (remoteControl.isRunning()) {
+        remoteControl.updateState({ pinnedRefs: pinnedRefs || [] });
     }
 }
 
@@ -1981,6 +1996,80 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             return { success: false, error: error.message };
         }
     });
+
+    // ── Remote control IPC handlers ──
+
+    ipcMain.handle('remote-control-start', async () => {
+        try {
+            const { ip, port } = remoteControl.startServer((msg) => {
+                // Handle commands from remote helpers
+                handleRemoteCommand(msg);
+            });
+            console.log(`[RemoteControl] Started at http://${ip}:${port}`);
+            return { success: true, ip, port, url: `http://${ip}:${port}` };
+        } catch (err) {
+            console.error('[RemoteControl] Failed to start:', err);
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('remote-control-stop', async () => {
+        remoteControl.stopServer();
+        return { success: true };
+    });
+
+    ipcMain.handle('remote-control-status', async () => {
+        return {
+            running: remoteControl.isRunning(),
+            ip: remoteControl.getLocalIP(),
+            port: remoteControl.PORT,
+            url: remoteControl.isRunning() ? `http://${remoteControl.getLocalIP()}:${remoteControl.PORT}` : null,
+        };
+    });
+
+    // Renderer tells us when response list or pins change so we can sync to remote
+    ipcMain.on('remote-sync-responses', (_event, { text, index, count }) => {
+        syncRemoteResponse(text, index, count);
+    });
+
+    ipcMain.on('remote-sync-pins', (_event, { pinnedRefs }) => {
+        syncRemotePins(pinnedRefs);
+    });
+
+    function handleRemoteCommand(msg) {
+        const { command, id, text } = msg;
+        switch (command) {
+            case 'prev-response':
+                sendToRenderer('navigate-previous-response');
+                break;
+            case 'next-response':
+                sendToRenderer('navigate-next-response');
+                break;
+            case 'scroll-up':
+                sendToRenderer('scroll-response-up');
+                break;
+            case 'scroll-down':
+                sendToRenderer('scroll-response-down');
+                break;
+            case 'copy-to-clipboard': {
+                // Ask renderer to copy current response to clipboard
+                sendToRenderer('remote-copy-to-clipboard');
+                break;
+            }
+            case 'toggle-pin':
+                sendToRenderer('remote-toggle-pin', { id });
+                break;
+            case 'close-all-pins':
+                sendToRenderer('pin-close-all');
+                break;
+            case 'helper-message':
+                if (text && text.trim()) {
+                    // Inject helper message as a new response with a marker
+                    sendToRenderer('helper-message', { text: text.trim() });
+                }
+                break;
+        }
+    }
 }
 
 module.exports = {
@@ -1988,6 +2077,8 @@ module.exports = {
     getEnabledTools,
     getStoredSetting,
     sendToRenderer,
+    syncRemoteResponse,
+    syncRemotePins,
     initializeNewSession,
     saveConversationTurn,
     getCurrentSessionData,

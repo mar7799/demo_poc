@@ -159,6 +159,26 @@ export class AssistantView extends LitElement {
             background: #444444;
         }
 
+        /* ── Helper messages (from remote control) ── */
+
+        .response-container.helper-response {
+            background: rgba(59, 130, 246, 0.06);
+            border-left: 3px solid #3b82f6;
+            padding-left: calc(var(--space-md) - 3px);
+        }
+
+        .helper-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #3b82f6;
+            margin-bottom: 8px;
+        }
+
         /* ── Mermaid diagrams ── */
 
         .response-container .mermaid {
@@ -1039,8 +1059,18 @@ export class AssistantView extends LitElement {
         const container = this.shadowRoot.querySelector('#responseContainer');
         if (container) {
             const currentResponse = this.getCurrentResponse();
-            const renderedResponse = this.renderMarkdown(currentResponse);
-            container.innerHTML = renderedResponse;
+            const HELPER_MARKER = '\u{1F4AC}__HELPER__\n';
+            const isHelper = currentResponse.startsWith(HELPER_MARKER);
+            const displayText = isHelper ? currentResponse.slice(HELPER_MARKER.length) : currentResponse;
+
+            if (isHelper) {
+                container.classList.add('helper-response');
+                container.innerHTML = '<div class="helper-badge">💬 From your helper</div>' + this.renderMarkdown(displayText);
+            } else {
+                container.classList.remove('helper-response');
+                container.innerHTML = this.renderMarkdown(displayText);
+            }
+
             // Debounce mermaid rendering — updateResponseContent fires on every streaming chunk,
             // so we wait until streaming settles before rendering diagrams
             if (typeof window !== 'undefined' && window.mermaid && container.querySelector('.mermaid')) {
