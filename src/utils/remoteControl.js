@@ -1,12 +1,9 @@
 const http = require('http');
-const { WebSocketServer } = require('ws');
 const { networkInterfaces } = require('os');
 
 const PORT = 3847;
 
 let server = null;
-let wss = null;
-let connections = new Set();
 let onCommandCallback = null;
 
 // Current app state mirrored to all connected helpers
@@ -50,47 +47,46 @@ function startServer(onCommand) {
     const html = buildRemoteHTML();
 
     server = http.createServer((req, res) => {
-        // Health check endpoint — lets the browser verify the server is alive
-        if (req.url === '/ping') {
-            res.writeHead(200, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
-            res.end('pong');
+        const cors = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+        };
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, cors);
+            res.end();
             return;
         }
+
+        // GET /state — returns current app state as JSON (polled every 600ms by helper)
+        if (req.url === '/state' && req.method === 'GET') {
+            res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, ...currentState }));
+            return;
+        }
+
+        // POST /command — helper sends a navigation/message command
+        if (req.url === '/command' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', () => {
+                try {
+                    const msg = JSON.parse(body);
+                    if (onCommandCallback) onCommandCallback(msg);
+                } catch {}
+                res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true }));
+            });
+            return;
+        }
+
+        // GET / — serve the remote control page
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(html);
     });
 
-    // Use a standalone WebSocketServer (noServer mode) and handle upgrade
-    // explicitly — more reliable in Electron's main process than { server } mode
-    wss = new WebSocketServer({ noServer: true });
-
-    server.on('upgrade', (request, socket, head) => {
-        wss.handleUpgrade(request, socket, head, (ws) => {
-            wss.emit('connection', ws, request);
-        });
-    });
-
-    wss.on('connection', (ws) => {
-        connections.add(ws);
-        console.log(`[RemoteControl] Helper connected (${connections.size} total)`);
-        // Send full current state to the new helper immediately
-        ws.send(JSON.stringify({ type: 'state', ...currentState }));
-
-        ws.on('message', (data) => {
-            try {
-                const msg = JSON.parse(data.toString());
-                if (onCommandCallback) onCommandCallback(msg);
-            } catch {}
-        });
-
-        ws.on('close', () => {
-            connections.delete(ws);
-            console.log(`[RemoteControl] Helper disconnected (${connections.size} remaining)`);
-        });
-        ws.on('error', () => connections.delete(ws));
-    });
-
-    wss.on('error', (err) => console.error('[RemoteControl] WSS error:', err));
+    server.on('error', (err) => console.error('[RemoteControl] Server error:', err));
 
     server.listen(PORT, '0.0.0.0', () => {
         console.log(`[RemoteControl] Server ready — http://${getLocalIP()}:${PORT}`);
@@ -99,11 +95,6 @@ function startServer(onCommand) {
 }
 
 function stopServer() {
-    for (const ws of connections) {
-        try { ws.close(); } catch {}
-    }
-    connections.clear();
-    if (wss) { wss.close(); wss = null; }
     if (server) { server.close(); server = null; }
     onCommandCallback = null;
     console.log('[RemoteControl] Server stopped');
@@ -388,6 +379,7 @@ function buildRemoteHTML() {
   <div style="display:flex;align-items:center;gap:8px">
     <div class="status-dot" id="dot"></div>
     <span class="header-title">Meta Max Pro Remote</span>
+    <span id="statusLabel" style="font-size:10px;color:var(--muted);margin-left:4px;">Connecting...</span>
   </div>
   <span class="counter" id="counter">0 / 0</span>
 </div>
@@ -452,37 +444,49 @@ function buildRemoteHTML() {
 </div>
 
 <script>
-  let ws = null;
   let state = { response: '', responseIndex: 0, responseCount: 0, pinnedRefs: [] };
-  const WS_URL = 'ws://' + location.host;
+  let connected = false;
+  let failCount = 0;
+  const BASE = window.location.origin;
 
-  function connect() {
-    ws = new WebSocket(WS_URL);
+  async function poll() {
+    try {
+      const res = await fetch(BASE + '/state', { cache: 'no-store' });
+      if (!res.ok) throw new Error('bad status');
+      const data = await res.json();
+      failCount = 0;
+      if (!connected) {
+        connected = true;
+        document.getElementById('dot').classList.add('connected');
+        document.getElementById('statusLabel').textContent = 'Connected';
+      }
+      state = data;
+      render();
+    } catch (e) {
+      failCount++;
+      if (failCount === 1) {
+        // First fail — might be a blip, keep polling
+      } else if (failCount === 3) {
+        // 3 consecutive failures — app likely stopped
+        connected = false;
+        document.getElementById('dot').classList.remove('connected');
+        document.getElementById('statusLabel').textContent = 'App stopped';
+        document.getElementById('responseText').innerHTML =
+          '<div style="text-align:center;padding:20px;color:#ef4444;">⚠️ The interview app has been closed.<br><span style="font-size:11px;color:#666">Waiting for it to restart...</span></div>';
+        document.getElementById('counter').textContent = '–';
+      }
+    }
+    setTimeout(poll, 600);
+  }
 
-    ws.onopen = () => {
-      document.getElementById('dot').classList.add('connected');
-      document.getElementById('responseText').innerHTML = '<span style="color:#555">Waiting for session to start...</span>';
-    };
-
-    ws.onclose = () => {
-      document.getElementById('dot').classList.remove('connected');
-      setTimeout(connect, 2500); // auto-reconnect
-    };
-
-    ws.onerror = (e) => {
-      console.warn('WS error', e);
-      ws.close();
-    };
-
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === 'state') {
-          state = msg;
-          render();
-        }
-      } catch {}
-    };
+  async function send(command, id) {
+    try {
+      await fetch(BASE + '/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command, id }),
+      });
+    } catch {}
   }
 
   function renderResponse(txt) {
@@ -572,16 +576,20 @@ function buildRemoteHTML() {
     setTimeout(() => { btn.innerHTML = orig; }, 1500);
   }
 
-  function sendHelperMessage() {
+  async function sendHelperMessage() {
     const textarea = document.getElementById('helperInput');
     const text = textarea.value.trim();
     if (!text) return;
-    if (!ws || ws.readyState !== 1) return;
-    ws.send(JSON.stringify({ command: 'helper-message', text }));
-    textarea.value = '';
+    try {
+      await fetch(BASE + '/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: 'helper-message', text }),
+      });
+      textarea.value = '';
+    } catch {}
   }
 
-  // Send on Ctrl/Cmd+Enter in textarea
   document.getElementById('helperInput').addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
@@ -589,7 +597,6 @@ function buildRemoteHTML() {
     }
   });
 
-  // Initialise mermaid with dark theme matching the app
   if (window.mermaid) {
     mermaid.initialize({
       startOnLoad: false,
@@ -605,7 +612,8 @@ function buildRemoteHTML() {
     });
   }
 
-  connect();
+  // Start polling — no WebSocket needed, works on every device
+  poll();
 </script>
 </body>
 </html>`;
