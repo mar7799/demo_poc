@@ -60,7 +60,7 @@ function startServer(onCommand) {
         }
 
         // GET /state — returns current app state as JSON (polled every 600ms by helper)
-        if (req.url === '/state' && req.method === 'GET') {
+        if (req.url.startsWith('/state') && req.method === 'GET') {
             res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ ok: true, ...currentState }));
             return;
@@ -447,7 +447,7 @@ function buildRemoteHTML() {
   let state = { response: '', responseIndex: 0, responseCount: 0, pinnedRefs: [] };
   let connected = false;
   let failCount = 0;
-  const BASE = window.location.origin;
+  const BASE = window.location.protocol + '//' + window.location.host;
 
   async function poll() {
     try {
