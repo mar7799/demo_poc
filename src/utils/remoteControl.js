@@ -47,15 +47,32 @@ function startServer(onCommand) {
 
     onCommandCallback = onCommand;
 
+    const html = buildRemoteHTML();
+
     server = http.createServer((req, res) => {
+        // Health check endpoint — lets the browser verify the server is alive
+        if (req.url === '/ping') {
+            res.writeHead(200, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
+            res.end('pong');
+            return;
+        }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(buildRemoteHTML());
+        res.end(html);
     });
 
-    wss = new WebSocketServer({ server });
+    // Use a standalone WebSocketServer (noServer mode) and handle upgrade
+    // explicitly — more reliable in Electron's main process than { server } mode
+    wss = new WebSocketServer({ noServer: true });
+
+    server.on('upgrade', (request, socket, head) => {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request);
+        });
+    });
 
     wss.on('connection', (ws) => {
         connections.add(ws);
+        console.log(`[RemoteControl] Helper connected (${connections.size} total)`);
         // Send full current state to the new helper immediately
         ws.send(JSON.stringify({ type: 'state', ...currentState }));
 
@@ -66,12 +83,18 @@ function startServer(onCommand) {
             } catch {}
         });
 
-        ws.on('close', () => connections.delete(ws));
+        ws.on('close', () => {
+            connections.delete(ws);
+            console.log(`[RemoteControl] Helper disconnected (${connections.size} remaining)`);
+        });
         ws.on('error', () => connections.delete(ws));
     });
 
-    server.listen(PORT, '0.0.0.0');
-    console.log(`[RemoteControl] Server started on port ${PORT}`);
+    wss.on('error', (err) => console.error('[RemoteControl] WSS error:', err));
+
+    server.listen(PORT, '0.0.0.0', () => {
+        console.log(`[RemoteControl] Server ready — http://${getLocalIP()}:${PORT}`);
+    });
     return { ip: getLocalIP(), port: PORT };
 }
 
@@ -438,14 +461,18 @@ function buildRemoteHTML() {
 
     ws.onopen = () => {
       document.getElementById('dot').classList.add('connected');
+      document.getElementById('responseText').innerHTML = '<span style="color:#555">Waiting for session to start...</span>';
     };
 
     ws.onclose = () => {
       document.getElementById('dot').classList.remove('connected');
-      setTimeout(connect, 2000); // auto-reconnect
+      setTimeout(connect, 2500); // auto-reconnect
     };
 
-    ws.onerror = () => ws.close();
+    ws.onerror = (e) => {
+      console.warn('WS error', e);
+      ws.close();
+    };
 
     ws.onmessage = (e) => {
       try {
