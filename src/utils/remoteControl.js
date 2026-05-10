@@ -5,6 +5,7 @@ const PORT = 3847;
 
 let server = null;
 let onCommandCallback = null;
+let connections = new Set(); // SSE response objects
 
 // Current app state mirrored to all connected helpers
 let currentState = {
@@ -36,7 +37,11 @@ function broadcast(payload) {
 
 function updateState(partial) {
     Object.assign(currentState, partial);
-    broadcast({ type: 'state', ...currentState });
+    // Push to all open SSE connections
+    const data = `data: ${JSON.stringify({ ok: true, ...currentState })}\n\n`;
+    for (const res of connections) {
+        try { res.write(data); } catch { connections.delete(res); }
+    }
 }
 
 function startServer(onCommand) {
@@ -81,8 +86,30 @@ function startServer(onCommand) {
             return;
         }
 
-        // GET / — serve the remote control page
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        // GET /events — Server-Sent Events stream (reliable on iOS, no WebSocket needed)
+        if (req.url.startsWith('/events') && req.method === 'GET') {
+            res.writeHead(200, {
+                ...cors,
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'X-Accel-Buffering': 'no',
+            });
+            res.flushHeaders();
+            // Send current state immediately on connect
+            res.write(`data: ${JSON.stringify({ ok: true, ...currentState })}\n\n`);
+            // Register this connection for future pushes
+            connections.add(res);
+            req.on('close', () => connections.delete(res));
+            return;
+        }
+
+        // GET / — serve the remote control page (never cached)
+        res.writeHead(200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+        });
         res.end(html);
     });
 
@@ -95,6 +122,8 @@ function startServer(onCommand) {
 }
 
 function stopServer() {
+    for (const res of connections) { try { res.end(); } catch {} }
+    connections.clear();
     if (server) { server.close(); server = null; }
     onCommandCallback = null;
     console.log('[RemoteControl] Server stopped');
@@ -445,38 +474,49 @@ function buildRemoteHTML() {
 
 <script>
   let state = { response: '', responseIndex: 0, responseCount: 0, pinnedRefs: [] };
-  let connected = false;
-  let failCount = 0;
   const BASE = window.location.protocol + '//' + window.location.host;
+  let es = null;
 
-  async function poll() {
-    try {
-      const res = await fetch(BASE + '/state', { cache: 'no-store' });
-      if (!res.ok) throw new Error('bad status');
-      const data = await res.json();
-      failCount = 0;
-      if (!connected) {
-        connected = true;
-        document.getElementById('dot').classList.add('connected');
-        document.getElementById('statusLabel').textContent = 'Connected';
-      }
-      state = data;
-      render();
-    } catch (e) {
-      failCount++;
-      if (failCount === 1) {
-        // First fail — might be a blip, keep polling
-      } else if (failCount === 3) {
-        // 3 consecutive failures — app likely stopped
-        connected = false;
-        document.getElementById('dot').classList.remove('connected');
-        document.getElementById('statusLabel').textContent = 'App stopped';
-        document.getElementById('responseText').innerHTML =
-          '<div style="text-align:center;padding:20px;color:#ef4444;">⚠️ The interview app has been closed.<br><span style="font-size:11px;color:#666">Waiting for it to restart...</span></div>';
-        document.getElementById('counter').textContent = '–';
-      }
-    }
-    setTimeout(poll, 600);
+  function setConnected(yes) {
+    document.getElementById('dot').classList.toggle('connected', yes);
+    document.getElementById('statusLabel').textContent = yes ? 'Connected' : 'Reconnecting...';
+  }
+
+  function showStopped() {
+    document.getElementById('dot').classList.remove('connected');
+    document.getElementById('statusLabel').textContent = 'App stopped';
+    document.getElementById('responseText').innerHTML =
+      '<div style="text-align:center;padding:24px 12px;color:#ef4444;">⚠️ The interview app has been closed.<br><span style="font-size:11px;color:#666;margin-top:6px;display:block">Waiting for it to restart...</span></div>';
+    document.getElementById('counter').textContent = '–';
+  }
+
+  function startSSE() {
+    if (es) { es.close(); }
+
+    es = new EventSource(BASE + '/events');
+
+    es.onopen = () => setConnected(true);
+
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.ok) { state = data; render(); }
+      } catch {}
+    };
+
+    es.onerror = () => {
+      setConnected(false);
+      es.close();
+      es = null;
+      // If SSE fails, check if server is still up; if not, show stopped
+      fetch(BASE + '/state', { cache: 'no-store' })
+        .then(r => r.ok ? startSSE() : showStopped())
+        .catch(() => {
+          showStopped();
+          // Keep retrying every 3s in case app restarts
+          setTimeout(startSSE, 3000);
+        });
+    };
   }
 
   async function send(command, id) {
@@ -612,8 +652,8 @@ function buildRemoteHTML() {
     });
   }
 
-  // Start polling — no WebSocket needed, works on every device
-  poll();
+  // EventSource (SSE) — plain streaming HTTP, works on every device, no WebSocket
+  startSSE();
 </script>
 </body>
 </html>`;
