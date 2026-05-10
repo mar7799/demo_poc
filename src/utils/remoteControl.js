@@ -97,6 +97,8 @@ function buildRemoteHTML() {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Meta Max Pro — Remote</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -168,15 +170,73 @@ function buildRemoteHTML() {
   }
   .response-text {
     color: var(--text);
-    line-height: 1.55;
+    line-height: 1.6;
     font-size: 13px;
-    white-space: pre-wrap;
     word-break: break-word;
-    max-height: 220px;
+    max-height: 55vh;
     overflow-y: auto;
   }
   .response-text::-webkit-scrollbar { width: 4px; }
   .response-text::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Markdown rendering inside response-text */
+  .response-text p { margin: 0.5em 0; }
+  .response-text h1,.response-text h2,.response-text h3 { margin: 0.8em 0 0.4em; font-weight:600; color:var(--text); }
+  .response-text h1 { font-size:1.3em; }
+  .response-text h2 { font-size:1.15em; }
+  .response-text h3 { font-size:1.05em; }
+  .response-text strong, .response-text b { font-weight:600; color:#fff; }
+  .response-text ul, .response-text ol { padding-left:1.4em; margin:0.5em 0; }
+  .response-text li { margin:0.25em 0; }
+  .response-text hr { border:none; border-top:1px solid var(--border); margin:1em 0; }
+  .response-text code {
+    background: #2a2a2a;
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.85em;
+    color: #e0e0e0;
+  }
+  .response-text pre {
+    background: #1a1a1a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    overflow-x: auto;
+    margin: 0.6em 0;
+  }
+  .response-text pre code {
+    background: none;
+    padding: 0;
+    font-size: 12px;
+    color: #e0e0e0;
+  }
+  .response-text table { border-collapse:collapse; width:100%; margin:0.5em 0; font-size:12px; }
+  .response-text th, .response-text td { border:1px solid var(--border); padding:6px 8px; text-align:left; }
+  .response-text th { background:var(--surface); font-weight:600; }
+  .response-text blockquote { border-left:3px solid var(--border); padding-left:10px; margin:0.5em 0; color:#999; }
+  .response-text .mermaid {
+    background: #1a1a1a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 0.6em 0;
+    text-align: center;
+    overflow-x: auto;
+  }
+  .response-text .mermaid svg { max-width:100%; height:auto; }
+  .response-text .mermaid svg text { fill:#e0e0e0 !important; }
+
+  /* Helper message badge */
+  .helper-badge {
+    display:inline-block;
+    font-size:10px;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    color: #3b82f6;
+    margin-bottom:8px;
+  }
 
   /* ── Button grid ── */
   .btn-section { display: flex; flex-direction: column; gap: 8px; }
@@ -398,10 +458,60 @@ function buildRemoteHTML() {
     };
   }
 
+  function renderResponse(txt) {
+    const el = document.getElementById('responseText');
+    if (!txt || txt === 'No response yet.') {
+      el.innerHTML = '<span style="color:#555">No response yet.</span>';
+      el.style.borderLeft = '';
+      return;
+    }
+
+    const HELPER_MARKER = '💬__HELPER__\n';
+    const isHelper = txt.startsWith(HELPER_MARKER);
+    const clean = isHelper ? txt.slice(HELPER_MARKER.length) : txt;
+
+    // Style helper messages distinctly
+    el.style.borderLeft = isHelper ? '3px solid #3b82f6' : '';
+    el.style.paddingLeft = isHelper ? '10px' : '';
+
+    let html = isHelper ? '<div class="helper-badge">💬 From your helper</div>' : '';
+
+    if (window.marked) {
+      marked.setOptions({ breaks: true, gfm: true });
+      let rendered = marked.parse(clean);
+      // Convert mermaid code blocks to divs for rendering
+      rendered = rendered.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g, (_, code) => {
+        const decoded = code.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&#39;/g,"'").replace(/&quot;/g,'"');
+        return '<div class="mermaid">' + decoded + '</div>';
+      });
+      html += rendered;
+    } else {
+      // Fallback if CDN not loaded
+      html += '<pre style="white-space:pre-wrap;font-size:13px">' + clean + '</pre>';
+    }
+
+    el.innerHTML = html;
+
+    // Render mermaid diagrams if any
+    if (window.mermaid) {
+      const diagrams = el.querySelectorAll('.mermaid');
+      diagrams.forEach(async (d, i) => {
+        if (d.dataset.rendered) return;
+        try {
+          const id = 'rm-mermaid-' + i + '-' + Date.now();
+          const { svg } = await mermaid.render(id, d.textContent.trim());
+          d.innerHTML = svg;
+          d.dataset.rendered = '1';
+        } catch (e) {
+          d.innerHTML = '<pre style="color:#999;font-size:11px">' + d.textContent + '</pre>';
+        }
+      });
+    }
+  }
+
   function render() {
-    // Response text
     const txt = state.response || 'No response yet.';
-    document.getElementById('responseText').textContent = txt;
+    renderResponse(txt);
 
     // Counter
     const idx = (state.responseIndex || 0) + 1;
@@ -451,6 +561,22 @@ function buildRemoteHTML() {
       sendHelperMessage();
     }
   });
+
+  // Initialise mermaid with dark theme matching the app
+  if (window.mermaid) {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      themeVariables: {
+        background: '#1a1a1a',
+        primaryColor: '#2a2a2a',
+        primaryTextColor: '#e0e0e0',
+        lineColor: '#666',
+        fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+        fontSize: '13px',
+      },
+    });
+  }
 
   connect();
 </script>
