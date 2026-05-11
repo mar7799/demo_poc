@@ -7,12 +7,11 @@ let server = null;
 let onCommandCallback = null;
 let connections = new Set(); // SSE response objects
 
-// Current app state mirrored to all connected helpers
 let currentState = {
     response: '',
     responseIndex: 0,
     responseCount: 0,
-    pinnedRefs: [],    // [{id, label, icon, active}]
+    pinnedRefs: [],
     status: 'Listening...',
 };
 
@@ -28,16 +27,9 @@ function getLocalIP() {
     return '127.0.0.1';
 }
 
-function broadcast(payload) {
-    const msg = JSON.stringify(payload);
-    for (const ws of connections) {
-        if (ws.readyState === 1) ws.send(msg);
-    }
-}
-
 function updateState(partial) {
     Object.assign(currentState, partial);
-    // Push to all open SSE connections
+    // Also push to any open SSE connections
     const data = `data: ${JSON.stringify({ ok: true, ...currentState })}\n\n`;
     for (const res of connections) {
         try { res.write(data); } catch { connections.delete(res); }
@@ -49,8 +41,6 @@ function startServer(onCommand) {
 
     onCommandCallback = onCommand;
 
-    const html = buildRemoteHTML();
-
     server = http.createServer((req, res) => {
         const cors = {
             'Access-Control-Allow-Origin': '*',
@@ -59,58 +49,63 @@ function startServer(onCommand) {
         };
 
         if (req.method === 'OPTIONS') {
-            res.writeHead(204, cors);
-            res.end();
-            return;
+            res.writeHead(204, cors); res.end(); return;
         }
 
-        // GET /state — returns current app state as JSON (polled every 600ms by helper)
+        // GET /state — JSON snapshot of current state
         if (req.url.startsWith('/state') && req.method === 'GET') {
             res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ ok: true, ...currentState }));
             return;
         }
 
-        // POST /command — helper sends a navigation/message command
-        if (req.url === '/command' && req.method === 'POST') {
-            let body = '';
-            req.on('data', chunk => { body += chunk; });
-            req.on('end', () => {
-                try {
-                    const msg = JSON.parse(body);
-                    if (onCommandCallback) onCommandCallback(msg);
-                } catch {}
-                res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ ok: true }));
-            });
-            return;
-        }
-
-        // GET /events — Server-Sent Events stream (reliable on iOS, no WebSocket needed)
+        // GET /events — SSE stream (optional, for JS-capable browsers)
         if (req.url.startsWith('/events') && req.method === 'GET') {
             res.writeHead(200, {
                 ...cors,
                 'Content-Type': 'text/event-stream',
                 'Cache-Control': 'no-cache',
                 'Connection': 'keep-alive',
-                'X-Accel-Buffering': 'no',
             });
             res.flushHeaders();
-            // Send current state immediately on connect
             res.write(`data: ${JSON.stringify({ ok: true, ...currentState })}\n\n`);
-            // Register this connection for future pushes
             connections.add(res);
             req.on('close', () => connections.delete(res));
             return;
         }
 
-        // GET / — serve the remote control page (never cached)
-        res.writeHead(200, {
+        // POST /command — handle a command from the helper (form or fetch)
+        if (req.url === '/command' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', () => {
+                try {
+                    let msg;
+                    const ct = req.headers['content-type'] || '';
+                    if (ct.includes('application/json')) {
+                        msg = JSON.parse(body);
+                    } else {
+                        // HTML form POST (urlencoded)
+                        const params = new URLSearchParams(body);
+                        msg = { command: params.get('command'), id: params.get('id'), text: params.get('text') };
+                    }
+                    if (onCommandCallback && msg.command) onCommandCallback(msg);
+                } catch (e) {}
+                // Redirect back to the page so the form submission refreshes
+                res.writeHead(303, { Location: '/', 'Cache-Control': 'no-cache' });
+                res.end();
+            });
+            return;
+        }
+
+        // GET / — server-rendered page, state baked in, meta-refresh every 1.5s
+        const noCache = {
             'Content-Type': 'text/html; charset=utf-8',
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
-        });
-        res.end(html);
+        };
+        res.writeHead(200, noCache);
+        res.end(buildPage());
     });
 
     server.on('error', (err) => console.error('[RemoteControl] Server error:', err));
@@ -118,6 +113,7 @@ function startServer(onCommand) {
     server.listen(PORT, '0.0.0.0', () => {
         console.log(`[RemoteControl] Server ready — http://${getLocalIP()}:${PORT}`);
     });
+
     return { ip: getLocalIP(), port: PORT };
 }
 
@@ -129,532 +125,130 @@ function stopServer() {
     console.log('[RemoteControl] Server stopped');
 }
 
-function isRunning() {
-    return server !== null;
+function isRunning() { return server !== null; }
+
+function esc(str) {
+    return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
 
-function buildRemoteHTML() {
+function buildPage() {
+    const s = currentState;
+    const idx = (s.responseIndex || 0) + 1;
+    const total = s.responseCount || 0;
+    const counter = total > 0 ? `${idx} / ${total}` : '0 / 0';
+
+    const responseHTML = s.response
+        ? `<div class="resp">${esc(s.response)}</div>`
+        : `<div class="resp muted">No response yet.</div>`;
+
+    const pinsHTML = (s.pinnedRefs || []).length === 0
+        ? '<span class="muted" style="font-size:11px">No pinned items yet</span>'
+        : (s.pinnedRefs || []).map(p =>
+            `<form method="POST" action="/command" style="display:inline">
+              <input type="hidden" name="command" value="toggle-pin">
+              <input type="hidden" name="id" value="${esc(p.id)}">
+              <button type="submit" class="chip${p.active ? ' active' : ''}">${esc(p.icon)} ${esc(p.label)}</button>
+            </form>`
+          ).join('');
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Meta Max Pro — Remote</title>
-<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta http-equiv="refresh" content="1">
+<title>Remote — Meta Max Pro</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg: #0e0e0e;
-    --surface: #1a1a1a;
-    --border: #2a2a2a;
-    --accent: #ffffff;
-    --text: #e0e0e0;
-    --muted: #666;
-    --helper: #3b82f6;
-    --helper-bg: rgba(59,130,246,0.12);
-    --danger: #ef4444;
-    --success: #22c55e;
-  }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-size: 14px;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* ── Header ── */
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .header-title { font-size: 13px; font-weight: 600; color: var(--text); }
-  .status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--danger);
-    transition: background 0.3s;
-  }
-  .status-dot.connected { background: var(--success); }
-  .counter {
-    font-size: 11px;
-    font-family: monospace;
-    color: var(--muted);
-    background: var(--border);
-    padding: 2px 8px;
-    border-radius: 10px;
-  }
-
-  /* ── Main content ── */
-  .content { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
-
-  /* ── Response display ── */
-  .response-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px;
-  }
-  .card-label {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--muted);
-    margin-bottom: 8px;
-  }
-  .response-text {
-    color: var(--text);
-    line-height: 1.6;
-    font-size: 13px;
-    word-break: break-word;
-    max-height: 55vh;
-    overflow-y: auto;
-  }
-  .response-text::-webkit-scrollbar { width: 4px; }
-  .response-text::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  /* Markdown rendering inside response-text */
-  .response-text p { margin: 0.5em 0; }
-  .response-text h1,.response-text h2,.response-text h3 { margin: 0.8em 0 0.4em; font-weight:600; color:var(--text); }
-  .response-text h1 { font-size:1.3em; }
-  .response-text h2 { font-size:1.15em; }
-  .response-text h3 { font-size:1.05em; }
-  .response-text strong, .response-text b { font-weight:600; color:#fff; }
-  .response-text ul, .response-text ol { padding-left:1.4em; margin:0.5em 0; }
-  .response-text li { margin:0.25em 0; }
-  .response-text hr { border:none; border-top:1px solid var(--border); margin:1em 0; }
-  .response-text code {
-    background: #2a2a2a;
-    padding: 0.1em 0.35em;
-    border-radius: 4px;
-    font-family: monospace;
-    font-size: 0.85em;
-    color: #e0e0e0;
-  }
-  .response-text pre {
-    background: #1a1a1a;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px;
-    overflow-x: auto;
-    margin: 0.6em 0;
-  }
-  .response-text pre code {
-    background: none;
-    padding: 0;
-    font-size: 12px;
-    color: #e0e0e0;
-  }
-  .response-text table { border-collapse:collapse; width:100%; margin:0.5em 0; font-size:12px; }
-  .response-text th, .response-text td { border:1px solid var(--border); padding:6px 8px; text-align:left; }
-  .response-text th { background:var(--surface); font-weight:600; }
-  .response-text blockquote { border-left:3px solid var(--border); padding-left:10px; margin:0.5em 0; color:#999; }
-  .response-text .mermaid {
-    background: #1a1a1a;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px;
-    margin: 0.6em 0;
-    text-align: center;
-    overflow-x: auto;
-  }
-  .response-text .mermaid svg { max-width:100%; height:auto; }
-  .response-text .mermaid svg text { fill:#e0e0e0 !important; }
-
-  /* Helper message badge */
-  .helper-badge {
-    display:inline-block;
-    font-size:10px;
-    font-weight:600;
-    text-transform:uppercase;
-    letter-spacing:0.05em;
-    color: #3b82f6;
-    margin-bottom:8px;
-  }
-
-  /* ── Button grid ── */
-  .btn-section { display: flex; flex-direction: column; gap: 8px; }
-  .btn-row { display: grid; gap: 8px; }
-  .btn-row-2 { grid-template-columns: 1fr 1fr; }
-  .btn-row-3 { grid-template-columns: 1fr 1fr 1fr; }
-  .btn-row-1 { grid-template-columns: 1fr; }
-
-  .btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 12px 8px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    transition: background 0.15s, border-color 0.15s;
-    user-select: none;
-  }
-  .btn:active { background: #2a2a2a; }
-  .btn.accent { border-color: var(--accent); color: var(--accent); }
-  .btn.accent:active { background: rgba(255,255,255,0.08); }
-  .btn.copy-btn { border-color: var(--success); color: var(--success); }
-  .btn.copy-btn:active { background: rgba(34,197,94,0.1); }
-  .btn.danger { border-color: var(--danger); color: var(--danger); }
-  .btn.danger:active { background: rgba(239,68,68,0.1); }
-  .btn svg { width: 16px; height: 16px; flex-shrink: 0; }
-
-  /* ── Pins section ── */
-  .pins-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 10px 12px;
-  }
-  .pins-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-  }
-  .pins-list { display: flex; flex-wrap: wrap; gap: 6px; }
-  .pin-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--muted);
-    font-size: 11px;
-    font-family: monospace;
-    cursor: pointer;
-    transition: border-color 0.15s, color 0.15s;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .pin-chip.active { border-color: var(--accent); color: var(--accent); background: #1f1f1f; }
-  .pin-chip:active { opacity: 0.7; }
-  .no-pins { font-size: 11px; color: var(--muted); }
-
-  /* ── Helper message area ── */
-  .helper-section {
-    background: var(--surface);
-    border: 1px solid var(--helper);
-    border-radius: 10px;
-    padding: 12px;
-  }
-  .helper-label {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--helper);
-    margin-bottom: 8px;
-  }
-  .helper-textarea {
-    width: 100%;
-    background: var(--bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 10px;
-    font-size: 13px;
-    font-family: inherit;
-    resize: vertical;
-    min-height: 80px;
-    outline: none;
-    line-height: 1.5;
-  }
-  .helper-textarea:focus { border-color: var(--helper); }
-  .helper-send {
-    width: 100%;
-    margin-top: 8px;
-    padding: 12px;
-    background: var(--helper);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    transition: opacity 0.15s;
-  }
-  .helper-send:active { opacity: 0.8; }
-  .helper-send:disabled { opacity: 0.4; cursor: default; }
-
-  /* ── Divider ── */
-  .section-title {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--muted);
-  }
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0e0e0e;--surface:#1a1a1a;--border:#2a2a2a;--text:#e0e0e0;--muted:#666;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--white:#fff}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px}
+.bar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
+.title{font-size:13px;font-weight:600;margin-left:8px}
+.live{font-size:10px;color:var(--muted);margin-left:4px}
+.badge{font-size:11px;font-family:monospace;color:var(--muted);background:var(--border);padding:2px 8px;border-radius:10px}
+.wrap{padding:12px;display:flex;flex-direction:column;gap:10px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px}
+.lbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px}
+.resp{font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:45vh;overflow-y:auto}
+.resp::-webkit-scrollbar{width:3px}.resp::-webkit-scrollbar-thumb{background:var(--border)}
+.muted{color:var(--muted)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.g1{display:grid;grid-template-columns:1fr;gap:8px}
+button[type=submit]{display:flex;align-items:center;justify-content:center;gap:5px;padding:13px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;width:100%;-webkit-tap-highlight-color:transparent}
+button[type=submit]:active{background:#2a2a2a}
+.acc{border-color:var(--white);color:var(--white)}
+.grn{border-color:var(--green);color:var(--green)}
+.red{border-color:var(--red);color:var(--red)}
+.slbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.pins{display:flex;flex-wrap:wrap;gap:6px;min-height:18px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg);color:var(--muted);font-size:11px;font-family:monospace;cursor:pointer;width:auto}
+.chip.active{border-color:var(--white);color:var(--white)}
+.hcard{background:var(--surface);border:1px solid var(--blue);border-radius:10px;padding:12px}
+.hlbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);margin-bottom:8px}
+textarea{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;font-family:inherit;resize:vertical;min-height:80px;outline:none;line-height:1.5}
+textarea:focus{border-color:var(--blue)}
+.sbtn{width:100%;margin-top:8px;padding:13px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+.sbtn:active{opacity:.8}
 </style>
 </head>
 <body>
-
-<div class="header">
-  <div style="display:flex;align-items:center;gap:8px">
-    <div class="status-dot" id="dot"></div>
-    <span class="header-title">Meta Max Pro Remote</span>
-    <span id="statusLabel" style="font-size:10px;color:var(--muted);margin-left:4px;">Connecting...</span>
+<div class="bar">
+  <div style="display:flex;align-items:center">
+    <div class="dot"></div>
+    <span class="title">Meta Max Pro Remote</span>
+    <span class="live">&#x25cf; live</span>
   </div>
-  <span class="counter" id="counter">0 / 0</span>
+  <span class="badge">${esc(counter)}</span>
 </div>
+<div class="wrap">
 
-<div class="content">
-
-  <!-- Current response display -->
-  <div class="response-card">
-    <div class="card-label">Current response</div>
-    <div class="response-text" id="responseText">Connecting...</div>
+  <div class="card">
+    <div class="lbl">Current Response</div>
+    ${responseHTML}
   </div>
 
-  <!-- Navigation -->
-  <div class="btn-section">
-    <div class="section-title">Navigate</div>
-    <div class="btn-row btn-row-2">
-      <button class="btn accent" onclick="send('prev-response')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        Previous
-      </button>
-      <button class="btn accent" onclick="send('next-response')">
-        Next
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-      </button>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div class="slbl">Navigate</div>
+    <div class="g2">
+      <form method="POST" action="/command"><input type="hidden" name="command" value="prev-response"><button type="submit" class="acc">&#8249; Previous</button></form>
+      <form method="POST" action="/command"><input type="hidden" name="command" value="next-response"><button type="submit" class="acc">Next &#8250;</button></form>
     </div>
-    <div class="btn-row btn-row-2">
-      <button class="btn" onclick="send('scroll-up')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-        Scroll Up
-      </button>
-      <button class="btn" onclick="send('scroll-down')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        Scroll Down
-      </button>
+    <div class="g2">
+      <form method="POST" action="/command"><input type="hidden" name="command" value="scroll-up"><button type="submit">&#8593; Scroll Up</button></form>
+      <form method="POST" action="/command"><input type="hidden" name="command" value="scroll-down"><button type="submit">&#8595; Scroll Down</button></form>
     </div>
-    <div class="btn-row btn-row-1">
-      <button class="btn copy-btn" onclick="copyToApp()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        Copy to App Clipboard
-      </button>
+    <div class="g1">
+      <form method="POST" action="/command"><input type="hidden" name="command" value="copy-to-clipboard"><button type="submit" class="grn">&#128203; Copy to App Clipboard</button></form>
     </div>
   </div>
 
-  <!-- Pinned panels -->
-  <div class="pins-wrap">
-    <div class="pins-header">
-      <span class="section-title">Pinned Designs &amp; Code</span>
-      <button class="btn danger" style="padding:4px 10px;font-size:11px" onclick="send('close-all-pins')">Close All</button>
+  <div class="card">
+    <div class="ph">
+      <span class="slbl">Pinned Designs &amp; Code</span>
+      <form method="POST" action="/command" style="display:inline">
+        <input type="hidden" name="command" value="close-all-pins">
+        <button type="submit" class="red" style="padding:4px 10px;font-size:11px;width:auto">Close All</button>
+      </form>
     </div>
-    <div class="pins-list" id="pinsList">
-      <span class="no-pins">No pinned items yet</span>
-    </div>
+    <div class="pins">${pinsHTML}</div>
   </div>
 
-  <!-- Helper message -->
-  <div class="helper-section">
-    <div class="helper-label">Send to screen</div>
-    <textarea class="helper-textarea" id="helperInput" placeholder="Type or paste anything — code, notes, a better answer...&#10;It will appear on the interview screen."></textarea>
-    <button class="helper-send" id="sendBtn" onclick="sendHelperMessage()">Send to Screen</button>
+  <div class="hcard">
+    <div class="hlbl">Send to Screen</div>
+    <form method="POST" action="/command">
+      <input type="hidden" name="command" value="helper-message">
+      <textarea name="text" placeholder="Type or paste anything — code, notes, a better answer...&#10;It will appear on the interview screen."></textarea>
+      <button type="submit" class="sbtn">Send to Screen</button>
+    </form>
   </div>
 
 </div>
-
-<script>
-  let state = { response: '', responseIndex: 0, responseCount: 0, pinnedRefs: [] };
-  const BASE = window.location.protocol + '//' + window.location.host;
-  let es = null;
-
-  function setConnected(yes) {
-    document.getElementById('dot').classList.toggle('connected', yes);
-    document.getElementById('statusLabel').textContent = yes ? 'Connected' : 'Reconnecting...';
-  }
-
-  function showStopped() {
-    document.getElementById('dot').classList.remove('connected');
-    document.getElementById('statusLabel').textContent = 'App stopped';
-    document.getElementById('responseText').innerHTML =
-      '<div style="text-align:center;padding:24px 12px;color:#ef4444;">⚠️ The interview app has been closed.<br><span style="font-size:11px;color:#666;margin-top:6px;display:block">Waiting for it to restart...</span></div>';
-    document.getElementById('counter').textContent = '–';
-  }
-
-  function startSSE() {
-    if (es) { es.close(); }
-
-    es = new EventSource(BASE + '/events');
-
-    es.onopen = () => setConnected(true);
-
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.ok) { state = data; render(); }
-      } catch {}
-    };
-
-    es.onerror = () => {
-      setConnected(false);
-      es.close();
-      es = null;
-      // If SSE fails, check if server is still up; if not, show stopped
-      fetch(BASE + '/state', { cache: 'no-store' })
-        .then(r => r.ok ? startSSE() : showStopped())
-        .catch(() => {
-          showStopped();
-          // Keep retrying every 3s in case app restarts
-          setTimeout(startSSE, 3000);
-        });
-    };
-  }
-
-  async function send(command, id) {
-    try {
-      await fetch(BASE + '/command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command, id }),
-      });
-    } catch {}
-  }
-
-  function renderResponse(txt) {
-    const el = document.getElementById('responseText');
-    if (!txt || txt === 'No response yet.') {
-      el.innerHTML = '<span style="color:#555">No response yet.</span>';
-      el.style.borderLeft = '';
-      return;
-    }
-
-    const HELPER_MARKER = '💬__HELPER__\n';
-    const isHelper = txt.startsWith(HELPER_MARKER);
-    const clean = isHelper ? txt.slice(HELPER_MARKER.length) : txt;
-
-    // Style helper messages distinctly
-    el.style.borderLeft = isHelper ? '3px solid #3b82f6' : '';
-    el.style.paddingLeft = isHelper ? '10px' : '';
-
-    let html = isHelper ? '<div class="helper-badge">💬 From your helper</div>' : '';
-
-    if (window.marked) {
-      marked.setOptions({ breaks: true, gfm: true });
-      let rendered = marked.parse(clean);
-      // Convert mermaid code blocks to divs for rendering
-      rendered = rendered.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g, (_, code) => {
-        const decoded = code.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&#39;/g,"'").replace(/&quot;/g,'"');
-        return '<div class="mermaid">' + decoded + '</div>';
-      });
-      html += rendered;
-    } else {
-      // Fallback if CDN not loaded
-      html += '<pre style="white-space:pre-wrap;font-size:13px">' + clean + '</pre>';
-    }
-
-    el.innerHTML = html;
-
-    // Render mermaid diagrams if any
-    if (window.mermaid) {
-      const diagrams = el.querySelectorAll('.mermaid');
-      diagrams.forEach(async (d, i) => {
-        if (d.dataset.rendered) return;
-        try {
-          const id = 'rm-mermaid-' + i + '-' + Date.now();
-          const { svg } = await mermaid.render(id, d.textContent.trim());
-          d.innerHTML = svg;
-          d.dataset.rendered = '1';
-        } catch (e) {
-          d.innerHTML = '<pre style="color:#999;font-size:11px">' + d.textContent + '</pre>';
-        }
-      });
-    }
-  }
-
-  function render() {
-    const txt = state.response || 'No response yet.';
-    renderResponse(txt);
-
-    // Counter
-    const idx = (state.responseIndex || 0) + 1;
-    const total = state.responseCount || 0;
-    document.getElementById('counter').textContent = total > 0 ? idx + ' / ' + total : '0 / 0';
-
-    // Pins
-    const list = document.getElementById('pinsList');
-    const pins = state.pinnedRefs || [];
-    if (pins.length === 0) {
-      list.innerHTML = '<span class="no-pins">No pinned items yet</span>';
-    } else {
-      list.innerHTML = pins.map(p =>
-        '<button class="pin-chip ' + (p.active ? 'active' : '') + '" onclick="send(\\'toggle-pin\\', \\''+p.id+'\\')">' +
-        p.icon + ' ' + p.label +
-        '</button>'
-      ).join('');
-    }
-  }
-
-  function send(command, id) {
-    if (!ws || ws.readyState !== 1) return;
-    ws.send(JSON.stringify({ command, id }));
-  }
-
-  function copyToApp() {
-    send('copy-to-clipboard');
-    const btn = document.querySelector('.copy-btn');
-    const orig = btn.innerHTML;
-    btn.textContent = 'Copied!';
-    setTimeout(() => { btn.innerHTML = orig; }, 1500);
-  }
-
-  async function sendHelperMessage() {
-    const textarea = document.getElementById('helperInput');
-    const text = textarea.value.trim();
-    if (!text) return;
-    try {
-      await fetch(BASE + '/command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: 'helper-message', text }),
-      });
-      textarea.value = '';
-    } catch {}
-  }
-
-  document.getElementById('helperInput').addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      sendHelperMessage();
-    }
-  });
-
-  if (window.mermaid) {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'dark',
-      themeVariables: {
-        background: '#1a1a1a',
-        primaryColor: '#2a2a2a',
-        primaryTextColor: '#e0e0e0',
-        lineColor: '#666',
-        fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
-        fontSize: '13px',
-      },
-    });
-  }
-
-  // EventSource (SSE) — plain streaming HTTP, works on every device, no WebSocket
-  startSSE();
-</script>
 </body>
 </html>`;
 }
