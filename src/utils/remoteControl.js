@@ -218,148 +218,152 @@ textarea:focus{border-color:var(--blue)}
   <div style="display:flex;flex-direction:column;gap:8px">
     <div class="slbl">Navigate</div>
     <div class="g2">
-      <button type="button" class="acc" onclick="cmd('prev-response')">&#8249; Previous</button>
-      <button type="button" class="acc" onclick="cmd('next-response')">Next &#8250;</button>
+      <button type="button" class="acc" id="btn-prev">&#8249; Previous</button>
+      <button type="button" class="acc" id="btn-next">Next &#8250;</button>
     </div>
     <div class="g2">
-      <button type="button" onclick="scrollResp('up')">&#8593; Scroll Up</button>
-      <button type="button" onclick="scrollResp('down')">&#8595; Scroll Down</button>
+      <button type="button" id="btn-up">&#8593; Scroll Up</button>
+      <button type="button" id="btn-down">&#8595; Scroll Down</button>
     </div>
     <div class="g1">
-      <button type="button" class="grn" onclick="cmd('copy-to-clipboard')">&#128203; Copy to App Clipboard</button>
+      <button type="button" class="grn" id="btn-copy">&#128203; Copy to App Clipboard</button>
     </div>
   </div>
 
   <div class="card">
     <div class="ph">
       <span class="slbl">Pinned Designs &amp; Code</span>
-      <button type="button" class="red" style="padding:4px 10px;font-size:11px;width:auto" onclick="cmd('close-all-pins')">Close All</button>
+      <button type="button" class="red" id="btn-closeall" style="padding:4px 10px;font-size:11px;width:auto">Close All</button>
     </div>
     <div class="pins" id="pins">${pinsHTML}</div>
   </div>
 
   <div class="hcard">
     <div class="hlbl">Send to Screen</div>
-    <form method="POST" action="/command">
-      <input type="hidden" name="command" value="helper-message">
-      <textarea name="text" placeholder="Type or paste anything — code, notes, a better answer...&#10;It will appear on the interview screen."></textarea>
-      <button type="submit" class="sbtn">Send to Screen</button>
-    </form>
+    <textarea id="msg" placeholder="Type or paste anything — code, notes, a better answer...&#10;It will appear on the interview screen."></textarea>
+    <button type="button" class="sbtn" id="btn-send">Send to Screen</button>
   </div>
 
 </div>
 <script>
 var failCount = 0;
-var textarea = null;
 
-// ── State update loop (replaces meta-refresh) ──
-function updateState() {
-  // Don't disturb the user while they are typing
-  if (textarea && document.activeElement === textarea) {
-    setTimeout(updateState, 1000);
+function post(body) {
+  var x = new XMLHttpRequest();
+  x.open('POST', '/command', true);
+  x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+  x.send(body);
+}
+
+function sendCmd(command, id) {
+  var b = 'command=' + encodeURIComponent(command);
+  if (id) b += '&id=' + encodeURIComponent(id);
+  post(b);
+}
+
+function getState(cb) {
+  var x = new XMLHttpRequest();
+  x.open('GET', '/state?t=' + Date.now(), true);
+  x.onreadystatechange = function() {
+    if (x.readyState === 4) {
+      if (x.status === 200) {
+        try { cb(null, JSON.parse(x.responseText)); } catch(e) { cb(e); }
+      } else {
+        cb(new Error('status ' + x.status));
+      }
+    }
+  };
+  x.send();
+}
+
+function loop() {
+  var msg = document.getElementById('msg');
+  if (msg && document.activeElement === msg) {
+    setTimeout(loop, 1000);
     return;
   }
-
-  fetch('/state', {cache:'no-store'})
-    .then(function(r){ return r.json(); })
-    .then(function(s) {
-      failCount = 0;
-
-      // Update offline banner
-      var banner = document.getElementById('offline');
-      if (banner) banner.style.display = 'none';
-
-      // Update counter
-      var idx = (s.responseIndex || 0) + 1;
-      var total = s.responseCount || 0;
-      var badge = document.getElementById('badge');
-      if (badge) badge.textContent = total > 0 ? idx + ' / ' + total : '0 / 0';
-
-      // Update response text (preserve scroll position)
-      var respEl = document.getElementById('resp');
-      if (respEl) {
-        var scrollTop = respEl.scrollTop;
-        var newText = s.response || '';
-        if (respEl.dataset.last !== newText) {
-          respEl.textContent = newText || 'No response yet.';
-          respEl.dataset.last = newText;
-          respEl.className = 'resp' + (newText ? '' : ' muted');
-          // Only scroll to bottom if we were already near the bottom
-          if (scrollTop > respEl.scrollHeight - respEl.clientHeight - 60) {
-            respEl.scrollTop = respEl.scrollHeight;
-          } else {
-            respEl.scrollTop = scrollTop;
-          }
-        }
-      }
-
-      // Update pins
-      var pinsEl = document.getElementById('pins');
-      if (pinsEl) {
-        var pins = s.pinnedRefs || [];
-        if (pins.length === 0) {
-          pinsEl.innerHTML = '<span class="muted" style="font-size:11px">No pinned items yet</span>';
-        } else {
-          pinsEl.innerHTML = pins.map(function(p) {
-            return '<button class="chip' + (p.active ? ' active' : '') + '" onclick="cmd(\'toggle-pin\',\''+p.id+'\')">' + p.icon + ' ' + p.label + '</button>';
-          }).join('');
-        }
-      }
-
-      setTimeout(updateState, 800);
-    })
-    .catch(function() {
+  getState(function(err, s) {
+    if (err) {
       failCount++;
       if (failCount >= 3) {
-        // App is offline
-        var banner = document.getElementById('offline');
-        if (banner) banner.style.display = 'flex';
+        var b = document.getElementById('offline');
+        if (b) b.style.display = 'flex';
         var badge = document.getElementById('badge');
-        if (badge) badge.textContent = '–';
+        if (badge) badge.textContent = '-';
       }
-      setTimeout(updateState, 2000);
-    });
-}
+      setTimeout(loop, 2000);
+      return;
+    }
+    failCount = 0;
+    var b = document.getElementById('offline');
+    if (b) b.style.display = 'none';
 
-// ── Send a command via fetch (no security popup) ──
-function cmd(command, id) {
-  var body = 'command=' + encodeURIComponent(command);
-  if (id) body += '&id=' + encodeURIComponent(id);
-  fetch('/command', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: body
-  }).catch(function(){});
-}
+    var idx = (s.responseIndex || 0) + 1;
+    var total = s.responseCount || 0;
+    var badge = document.getElementById('badge');
+    if (badge) badge.textContent = total > 0 ? (idx + ' / ' + total) : '0 / 0';
 
-// ── Scroll buttons: send event AND scroll the local response too ──
-function scrollResp(dir) {
-  cmd(dir === 'up' ? 'scroll-up' : 'scroll-down');
-  var el = document.getElementById('resp');
-  if (el) {
-    var amt = el.clientHeight * 0.4;
-    el.scrollTop += dir === 'up' ? -amt : amt;
-  }
-}
+    var el = document.getElementById('resp');
+    if (el) {
+      var newText = s.response || '';
+      if (el.getAttribute('data-last') !== newText) {
+        var st = el.scrollTop;
+        var atBottom = st > el.scrollHeight - el.clientHeight - 60;
+        el.textContent = newText || 'No response yet.';
+        el.setAttribute('data-last', newText);
+        el.className = 'resp' + (newText ? '' : ' muted');
+        el.scrollTop = atBottom ? el.scrollHeight : st;
+      }
+    }
 
-// ── Intercept all form submissions ──
-document.addEventListener('DOMContentLoaded', function() {
-  textarea = document.querySelector('textarea');
+    var pins = document.getElementById('pins');
+    if (pins) {
+      var list = s.pinnedRefs || [];
+      if (list.length === 0) {
+        pins.innerHTML = '<span class="muted" style="font-size:11px">No pinned items yet</span>';
+      } else {
+        var html = '';
+        for (var i = 0; i < list.length; i++) {
+          var p = list[i];
+          html += '<button type="button" class="chip' + (p.active ? ' active' : '') + '" data-id="' + p.id + '">' + p.icon + ' ' + p.label + '</button>';
+        }
+        pins.innerHTML = html;
+        pins.querySelectorAll('button[data-id]').forEach(function(btn) {
+          btn.addEventListener('click', function() { sendCmd('toggle-pin', this.getAttribute('data-id')); });
+        });
+      }
+    }
 
-  document.querySelectorAll('form').forEach(function(form) {
-    form.addEventListener('submit', function(e) {
-      e.preventDefault();
-      var data = new URLSearchParams(new FormData(form));
-      fetch('/command', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: data.toString()
-      }).catch(function(){});
-      if (textarea) { textarea.value = ''; textarea.blur(); }
-    });
+    setTimeout(loop, 800);
   });
+}
 
-  updateState();
+function scrollResp(dir) {
+  sendCmd(dir === 'up' ? 'scroll-up' : 'scroll-down');
+  var el = document.getElementById('resp');
+  if (el) el.scrollTop += dir === 'up' ? -(el.clientHeight * 0.4) : (el.clientHeight * 0.4);
+}
+
+window.addEventListener('load', function() {
+  var wire = function(id, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('click', fn);
+  };
+  wire('btn-prev',    function() { sendCmd('prev-response'); });
+  wire('btn-next',    function() { sendCmd('next-response'); });
+  wire('btn-up',      function() { scrollResp('up'); });
+  wire('btn-down',    function() { scrollResp('down'); });
+  wire('btn-copy',    function() { sendCmd('copy-to-clipboard'); });
+  wire('btn-closeall',function() { sendCmd('close-all-pins'); });
+  wire('btn-send', function() {
+    var msg = document.getElementById('msg');
+    var text = msg ? msg.value.trim() : '';
+    if (!text) return;
+    post('command=helper-message&text=' + encodeURIComponent(text));
+    msg.value = '';
+    msg.blur();
+  });
+  loop();
 });
 </script>
 </body>
