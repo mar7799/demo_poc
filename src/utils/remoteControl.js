@@ -249,6 +249,26 @@ textarea:focus{border-color:var(--blue)}
   </div>
 
 </div>
+<script>
+// Intercept all form submissions and use fetch instead —
+// this prevents iOS Safari's "not secure" popup on HTTP form posts
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('form').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var data = new URLSearchParams(new FormData(form)).toString();
+      fetch('/command', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: data
+      }).catch(function(){});
+      // Clear textarea after send
+      var ta = form.querySelector('textarea');
+      if (ta) ta.value = '';
+    });
+  });
+});
+</script>
 </body>
 </html>`;
 }
