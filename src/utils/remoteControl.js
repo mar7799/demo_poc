@@ -160,7 +160,6 @@ function buildPage() {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<meta http-equiv="refresh" content="1">
 <title>Remote — Meta Max Pro</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -204,39 +203,39 @@ textarea:focus{border-color:var(--blue)}
     <span class="title">Meta Max Pro Remote</span>
     <span class="live">&#x25cf; live</span>
   </div>
-  <span class="badge">${esc(counter)}</span>
+  <span class="badge" id="badge">${esc(counter)}</span>
+</div>
+<div id="offline" style="display:none;background:#1a0a0a;border-bottom:2px solid var(--red);padding:10px 16px;align-items:center;gap:8px;font-size:13px;color:var(--red)">
+  &#9888; App is offline — waiting for it to restart...
 </div>
 <div class="wrap">
 
   <div class="card">
     <div class="lbl">Current Response</div>
-    ${responseHTML}
+    <div id="resp" class="resp${s.response ? '' : ' muted'}" data-last="${esc(s.response)}">${s.response ? esc(s.response) : 'No response yet.'}</div>
   </div>
 
   <div style="display:flex;flex-direction:column;gap:8px">
     <div class="slbl">Navigate</div>
     <div class="g2">
-      <form method="POST" action="/command"><input type="hidden" name="command" value="prev-response"><button type="submit" class="acc">&#8249; Previous</button></form>
-      <form method="POST" action="/command"><input type="hidden" name="command" value="next-response"><button type="submit" class="acc">Next &#8250;</button></form>
+      <button type="button" class="acc" onclick="cmd('prev-response')">&#8249; Previous</button>
+      <button type="button" class="acc" onclick="cmd('next-response')">Next &#8250;</button>
     </div>
     <div class="g2">
-      <form method="POST" action="/command"><input type="hidden" name="command" value="scroll-up"><button type="submit">&#8593; Scroll Up</button></form>
-      <form method="POST" action="/command"><input type="hidden" name="command" value="scroll-down"><button type="submit">&#8595; Scroll Down</button></form>
+      <button type="button" onclick="scrollResp('up')">&#8593; Scroll Up</button>
+      <button type="button" onclick="scrollResp('down')">&#8595; Scroll Down</button>
     </div>
     <div class="g1">
-      <form method="POST" action="/command"><input type="hidden" name="command" value="copy-to-clipboard"><button type="submit" class="grn">&#128203; Copy to App Clipboard</button></form>
+      <button type="button" class="grn" onclick="cmd('copy-to-clipboard')">&#128203; Copy to App Clipboard</button>
     </div>
   </div>
 
   <div class="card">
     <div class="ph">
       <span class="slbl">Pinned Designs &amp; Code</span>
-      <form method="POST" action="/command" style="display:inline">
-        <input type="hidden" name="command" value="close-all-pins">
-        <button type="submit" class="red" style="padding:4px 10px;font-size:11px;width:auto">Close All</button>
-      </form>
+      <button type="button" class="red" style="padding:4px 10px;font-size:11px;width:auto" onclick="cmd('close-all-pins')">Close All</button>
     </div>
-    <div class="pins">${pinsHTML}</div>
+    <div class="pins" id="pins">${pinsHTML}</div>
   </div>
 
   <div class="hcard">
@@ -250,23 +249,117 @@ textarea:focus{border-color:var(--blue)}
 
 </div>
 <script>
-// Intercept all form submissions and use fetch instead —
-// this prevents iOS Safari's "not secure" popup on HTTP form posts
+var failCount = 0;
+var textarea = null;
+
+// ── State update loop (replaces meta-refresh) ──
+function updateState() {
+  // Don't disturb the user while they are typing
+  if (textarea && document.activeElement === textarea) {
+    setTimeout(updateState, 1000);
+    return;
+  }
+
+  fetch('/state', {cache:'no-store'})
+    .then(function(r){ return r.json(); })
+    .then(function(s) {
+      failCount = 0;
+
+      // Update offline banner
+      var banner = document.getElementById('offline');
+      if (banner) banner.style.display = 'none';
+
+      // Update counter
+      var idx = (s.responseIndex || 0) + 1;
+      var total = s.responseCount || 0;
+      var badge = document.getElementById('badge');
+      if (badge) badge.textContent = total > 0 ? idx + ' / ' + total : '0 / 0';
+
+      // Update response text (preserve scroll position)
+      var respEl = document.getElementById('resp');
+      if (respEl) {
+        var scrollTop = respEl.scrollTop;
+        var newText = s.response || '';
+        if (respEl.dataset.last !== newText) {
+          respEl.textContent = newText || 'No response yet.';
+          respEl.dataset.last = newText;
+          respEl.className = 'resp' + (newText ? '' : ' muted');
+          // Only scroll to bottom if we were already near the bottom
+          if (scrollTop > respEl.scrollHeight - respEl.clientHeight - 60) {
+            respEl.scrollTop = respEl.scrollHeight;
+          } else {
+            respEl.scrollTop = scrollTop;
+          }
+        }
+      }
+
+      // Update pins
+      var pinsEl = document.getElementById('pins');
+      if (pinsEl) {
+        var pins = s.pinnedRefs || [];
+        if (pins.length === 0) {
+          pinsEl.innerHTML = '<span class="muted" style="font-size:11px">No pinned items yet</span>';
+        } else {
+          pinsEl.innerHTML = pins.map(function(p) {
+            return '<button class="chip' + (p.active ? ' active' : '') + '" onclick="cmd(\'toggle-pin\',\''+p.id+'\')">' + p.icon + ' ' + p.label + '</button>';
+          }).join('');
+        }
+      }
+
+      setTimeout(updateState, 800);
+    })
+    .catch(function() {
+      failCount++;
+      if (failCount >= 3) {
+        // App is offline
+        var banner = document.getElementById('offline');
+        if (banner) banner.style.display = 'flex';
+        var badge = document.getElementById('badge');
+        if (badge) badge.textContent = '–';
+      }
+      setTimeout(updateState, 2000);
+    });
+}
+
+// ── Send a command via fetch (no security popup) ──
+function cmd(command, id) {
+  var body = 'command=' + encodeURIComponent(command);
+  if (id) body += '&id=' + encodeURIComponent(id);
+  fetch('/command', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: body
+  }).catch(function(){});
+}
+
+// ── Scroll buttons: send event AND scroll the local response too ──
+function scrollResp(dir) {
+  cmd(dir === 'up' ? 'scroll-up' : 'scroll-down');
+  var el = document.getElementById('resp');
+  if (el) {
+    var amt = el.clientHeight * 0.4;
+    el.scrollTop += dir === 'up' ? -amt : amt;
+  }
+}
+
+// ── Intercept all form submissions ──
 document.addEventListener('DOMContentLoaded', function() {
+  textarea = document.querySelector('textarea');
+
   document.querySelectorAll('form').forEach(function(form) {
     form.addEventListener('submit', function(e) {
       e.preventDefault();
-      var data = new URLSearchParams(new FormData(form)).toString();
+      var data = new URLSearchParams(new FormData(form));
       fetch('/command', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: data
+        body: data.toString()
       }).catch(function(){});
-      // Clear textarea after send
-      var ta = form.querySelector('textarea');
-      if (ta) ta.value = '';
+      if (textarea) { textarea.value = ''; textarea.blur(); }
     });
   });
+
+  updateState();
 });
 </script>
 </body>
