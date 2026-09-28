@@ -39,7 +39,7 @@ xattr -cr "/Applications/ShadowAI.app"
 
 1. Click **More info** → **Run anyway**
 
-For the ZIP: extract, right-click `Meta Max Pro.exe` → **Properties** → check **Unblock** → **Apply** → **OK**.
+For the ZIP: extract, right-click `ShadowAI.exe` → **Properties** → check **Unblock** → **Apply** → **OK**.
 
 ---
 
@@ -57,8 +57,8 @@ xattr -cr "/Applications/ShadowAI.app"
 
 **Development (running from source):**
 ```bash
-xattr -cr "/path/to/meta max pro/src/assets/SystemAudioDump"
-chmod +x "/path/to/meta max pro/src/assets/SystemAudioDump"
+xattr -cr "/path/to/ShadowAI/src/assets/SystemAudioDump"
+chmod +x "/path/to/ShadowAI/src/assets/SystemAudioDump"
 ```
 
 You only need to do this once. If the app launches but produces no AI responses when the interviewer speaks, this is almost always the cause.
