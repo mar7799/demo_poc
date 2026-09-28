@@ -378,22 +378,38 @@ function getAvailableModel() {
     return 'gemini-2.5-flash'; // Default to flash for paid API users
 }
 
-function getModelForToday() {
+const GROQ_MODEL_ORDER = [
+    'openai/gpt-oss-120b',
+    'openai/gpt-oss-20b',
+    'qwen/qwen3.8-27b',
+];
+
+function getModelForToday(skipModels = []) {
     const todayEntry = getTodayLimits();
     const groq = todayEntry.groq;
 
-    if (groq['openai/gpt-oss-120b'] && groq['openai/gpt-oss-120b'].chars < groq['openai/gpt-oss-120b'].limit) {
-        return 'openai/gpt-oss-120b';
-    }
-    if (groq['openai/gpt-oss-20b'] && groq['openai/gpt-oss-20b'].chars < groq['openai/gpt-oss-20b'].limit) {
-        return 'openai/gpt-oss-20b';
-    }
-    if (groq['qwen/qwen3.8-27b'] && groq['qwen/qwen3.8-27b'].chars < groq['qwen/qwen3.8-27b'].limit) {
-        return 'qwen/qwen3.8-27b';
+    for (const model of GROQ_MODEL_ORDER) {
+        if (skipModels.includes(model)) continue;
+        if (groq[model] && groq[model].chars < groq[model].limit) {
+            return model;
+        }
     }
 
-    // All limits exhausted
     return null;
+}
+
+// Mark a model as exhausted for today so it's skipped on the next getModelForToday call.
+// Used when a model returns a 4xx API error (model unavailable for this API key/plan).
+function markModelExhausted(modelId) {
+    getTodayLimits(); // ensure today's entry exists
+    const limits = getLimits();
+    const today = getTodayDateString();
+    const todayEntry = limits.data.find(e => e.date === today);
+    if (todayEntry && todayEntry.groq && todayEntry.groq[modelId] !== undefined) {
+        todayEntry.groq[modelId].chars = todayEntry.groq[modelId].limit; // pin to limit
+        setLimits(limits);
+        console.log(`[Groq] Marked ${modelId} as exhausted/unavailable for today`);
+    }
 }
 
 // ============ HISTORY ============
@@ -539,6 +555,7 @@ module.exports = {
     getAvailableModel,
     incrementCharUsage,
     getModelForToday,
+    markModelExhausted,
 
     // History
     saveSession,

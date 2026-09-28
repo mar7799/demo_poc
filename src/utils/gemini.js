@@ -5,7 +5,7 @@ const { saveDebugAudio } = require('../audioUtils');
 const { getSystemPrompt, buildDynamicPrompt } = require('./prompts');
 const { classifyQuestion } = require('./classifier');
 const { checkTruncation, fixFormat, validateClassification, record: auditRecord } = require('./audit');
-const { getAvailableModel, incrementLimitCount, getApiKey, getGroqApiKey, getAnthropicApiKey, incrementCharUsage, getModelForToday, saveSession: persistSession } = require('../storage');
+const { getAvailableModel, incrementLimitCount, getApiKey, getGroqApiKey, getAnthropicApiKey, incrementCharUsage, getModelForToday, markModelExhausted, saveSession: persistSession } = require('../storage');
 const { connectCloud, sendCloudAudio, sendCloudText, sendCloudImage, closeCloud, setOnTurnComplete } = require('./cloud');
 const { startWhisperVAD, stopWhisperVAD, processAudioChunk: processWhisperChunk } = require('./whisper');
 const remoteControl = require('./remoteControl');
@@ -598,7 +598,8 @@ async function sendToGroq(transcription) {
         console.log(`[Classifier] Type: ${questionType} | Prompt: ${activeSystemPrompt.length} chars`);
     }
 
-    const modelToUse = getModelForToday();
+    const skippedModels = [];
+    let modelToUse = getModelForToday(skippedModels);
     if (!modelToUse) {
         console.log('All Groq daily limits exhausted');
         sendToRenderer('update-status', 'Groq limits reached for today');
@@ -656,14 +657,51 @@ async function sendToGroq(transcription) {
             })
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Groq API error:', response.status, errorText);
-            sendToRenderer('update-status', `Groq error: ${response.status}`);
-            return;
+        let activeResponse = response;
+
+        if (!activeResponse.ok) {
+            const errorText = await activeResponse.text();
+            let errorMsg = '';
+            try { errorMsg = JSON.parse(errorText)?.error?.message || errorText; } catch (_) { errorMsg = errorText; }
+            console.error(`[Groq] ${modelToUse} error ${activeResponse.status}:`, errorMsg);
+
+            // 4xx = model unavailable for this API key/plan — mark exhausted and try the next one
+            if (activeResponse.status >= 400 && activeResponse.status < 500) {
+                markModelExhausted(modelToUse);
+                skippedModels.push(modelToUse);
+                modelToUse = getModelForToday(skippedModels);
+                if (!modelToUse) {
+                    sendToRenderer('update-status', 'All Groq models unavailable — check your API key');
+                    return;
+                }
+                console.log(`[Groq] Falling back to ${modelToUse}`);
+                sendToRenderer('update-status', `Trying ${modelToUse}...`);
+                activeResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${groqApiKey}`, 'Content-Type': 'application/json' },
+                    signal: currentGroqAbortController.signal,
+                    body: JSON.stringify({
+                        model: modelToUse,
+                        messages: [{ role: 'system', content: activeSystemPrompt }, ...groqHistoryForRequest],
+                        stream: true,
+                        temperature: 0.7,
+                        max_tokens: ['system_design', 'coding'].includes(questionType) ? 4096 : 700,
+                        ...(modelToUse.includes('qwen') ? { reasoning_effort: 'none' } : {}),
+                    }),
+                });
+                if (!activeResponse.ok) {
+                    const retryErr = await activeResponse.text();
+                    console.error(`[Groq] Fallback ${modelToUse} also failed ${activeResponse.status}:`, retryErr);
+                    sendToRenderer('update-status', `Groq unavailable — check your API key or use Claude`);
+                    return;
+                }
+            } else {
+                sendToRenderer('update-status', `Groq error ${activeResponse.status}: ${errorMsg.slice(0, 60)}`);
+                return;
+            }
         }
 
-        const reader = response.body.getReader();
+        const reader = activeResponse.body.getReader();
         const decoder = new TextDecoder();
         let fullText = '';
         let inThinkBlock = false;
