@@ -1,4 +1,4 @@
-# Meta Max Pro
+# ShadowAI
 
 > [!NOTE]
 > Requires macOS 13+ or Windows 10/11. Older OS versions have limited support.
@@ -13,10 +13,10 @@ Get the latest release from the [Releases page](https://github.com/mar7799/demo_
 
 | Platform | File |
 |---|---|
-| macOS Apple Silicon (M1/M2/M3/M4) | `Meta Max Pro-darwin-arm64.dmg` |
-| macOS Intel | `Meta Max Pro-darwin-x64.dmg` |
-| Windows x64 | `Meta Max Pro-win32-x64.zip` |
-| Windows ARM | `Meta Max Pro-win32-arm64.zip` |
+| macOS Apple Silicon (M1/M2/M3/M4) | `ShadowAI-darwin-arm64.dmg` |
+| macOS Intel | `ShadowAI-darwin-x64.dmg` |
+| Windows x64 | `ShadowAI-win32-x64.zip` |
+| Windows ARM | `ShadowAI-win32-arm64.zip` |
 
 ---
 
@@ -27,12 +27,12 @@ The app is not code-signed. Both macOS and Windows will show a warning on first 
 ### macOS — "damaged and can't be opened"
 
 **Option A — Right-click to open:**
-1. Drag `Meta Max Pro.app` to **Applications**
+1. Drag `ShadowAI.app` to **Applications**
 2. Right-click → **Open** → click **Open** in the dialog
 
 **Option B — Remove quarantine flag:**
 ```bash
-xattr -cr "/Applications/Meta Max Pro.app"
+xattr -cr "/Applications/ShadowAI.app"
 ```
 
 ### Windows — "Windows protected your PC"
@@ -52,7 +52,7 @@ macOS blocks the system audio binary with a quarantine flag the first time it's 
 
 **Installed app (from DMG):**
 ```bash
-xattr -cr "/Applications/Meta Max Pro.app"
+xattr -cr "/Applications/ShadowAI.app"
 ```
 
 **Development (running from source):**

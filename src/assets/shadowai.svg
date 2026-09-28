@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Background gradient: deep space dark -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0e0b1a"/>
+      <stop offset="100%" stop-color="#06040f"/>
+    </linearGradient>
+
+    <!-- Purple glow behind the figure -->
+    <radialGradient id="glow" cx="50%" cy="48%" r="45%">
+      <stop offset="0%" stop-color="#7c3aed" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#4c1d95" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#0e0b1a" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Eye iris -->
+    <radialGradient id="iris" cx="38%" cy="38%" r="60%">
+      <stop offset="0%" stop-color="#e0d0ff"/>
+      <stop offset="40%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#5b21b6"/>
+    </radialGradient>
+
+    <!-- Eye glow filter -->
+    <filter id="eyeglow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Soft blur for glow blob -->
+    <filter id="softblur">
+      <feGaussianBlur stdDeviation="45"/>
+    </filter>
+
+    <!-- Figure shadow softness -->
+    <filter id="figblur">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  <!-- App icon rounded rect background -->
+  <rect width="1024" height="1024" rx="220" ry="220" fill="url(#bg)"/>
+
+  <!-- Ambient glow blob -->
+  <ellipse cx="512" cy="500" rx="260" ry="300" fill="url(#glow)" filter="url(#softblur)"/>
+
+  <!-- ── Shadow figure ── -->
+  <!-- The "shadow": a stylized human silhouette, semi-transparent, slightly blurred -->
+  <!-- Head -->
+  <ellipse cx="512" cy="318" rx="118" ry="118"
+           fill="#1a0f35" opacity="0.85" filter="url(#figblur)"/>
+  <!-- Neck + shoulders + body merging into darkness at bottom -->
+  <path d="
+    M 394 416
+    C 340 460, 282 530, 262 680
+    C 258 720, 280 760, 512 768
+    C 744 760, 766 720, 762 680
+    C 742 530, 684 460, 630 416
+    C 600 392, 560 376, 512 374
+    C 464 376, 424 392, 394 416
+    Z"
+    fill="#1a0f35" opacity="0.82" filter="url(#figblur)"/>
+
+  <!-- Slightly lighter inner body to give 3D depth -->
+  <path d="
+    M 430 432
+    C 392 470, 348 540, 330 680
+    L 694 680
+    C 676 540, 632 470, 594 432
+    C 568 408, 542 396, 512 394
+    C 482 396, 456 408, 430 432
+    Z"
+    fill="#22144a" opacity="0.6"/>
+
+  <!-- ── Glowing AI eye ── -->
+  <!-- Outer halo -->
+  <ellipse cx="512" cy="320" rx="54" ry="36"
+           fill="#7c3aed" opacity="0.35" filter="url(#softblur)"/>
+  <!-- Iris -->
+  <ellipse cx="512" cy="320" rx="38" ry="27"
+           fill="url(#iris)" filter="url(#eyeglow)"/>
+  <!-- Pupil -->
+  <ellipse cx="512" cy="320" rx="16" ry="16" fill="#0d0020"/>
+  <!-- Catchlight -->
+  <ellipse cx="522" cy="313" rx="7" ry="5" fill="white" opacity="0.9"/>
+
+  <!-- ── Neural circuit lines emanating from body ── -->
+  <g stroke="#7c3aed" stroke-width="2.5" fill="none" opacity="0.45">
+    <!-- Left arm circuit -->
+    <path d="M 350 520 L 290 560 L 230 560"/>
+    <circle cx="230" cy="560" r="7" fill="#a855f7" stroke="none" opacity="0.8"/>
+    <path d="M 260 560 L 230 590"/>
+    <circle cx="230" cy="590" r="5" fill="#7c3aed" stroke="none" opacity="0.6"/>
+
+    <!-- Right arm circuit -->
+    <path d="M 674 520 L 734 560 L 794 560"/>
+    <circle cx="794" cy="560" r="7" fill="#a855f7" stroke="none" opacity="0.8"/>
+    <path d="M 764 560 L 794 590"/>
+    <circle cx="794" cy="590" r="5" fill="#7c3aed" stroke="none" opacity="0.6"/>
+
+    <!-- Bottom root -->
+    <path d="M 512 768 L 512 830"/>
+    <path d="M 480 830 L 544 830"/>
+    <circle cx="468" cy="830" r="6" fill="#a855f7" stroke="none" opacity="0.7"/>
+    <circle cx="556" cy="830" r="6" fill="#a855f7" stroke="none" opacity="0.7"/>
+  </g>
+
+  <!-- ── "S·AI" subtle text watermark at the bottom ── -->
+  <text x="512" y="900"
+        font-family="system-ui, -apple-system, Helvetica, sans-serif"
+        font-size="64" font-weight="700" letter-spacing="8"
+        text-anchor="middle" fill="#a855f7" opacity="0.55">
+    SHADOW·AI
+  </text>
+</svg>

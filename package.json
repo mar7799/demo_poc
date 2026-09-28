@@ -1,8 +1,8 @@
 {
-    "name": "meta-max-pro",
-    "productName": "Meta Max Pro",
+    "name": "shadowai",
+    "productName": "ShadowAI",
     "version": "0.9.0",
-    "description": "Meta Max Pro",
+    "description": "ShadowAI — stealth AI interview assistant",
     "main": "src/index.js",
     "scripts": {
         "start": "electron-forge start",

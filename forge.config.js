@@ -5,8 +5,8 @@ module.exports = {
     packagerConfig: {
         asar: true,
         extraResource: ['./src/assets/SystemAudioDump'],
-        name: 'Meta Max Pro',
-        icon: 'src/assets/logo',
+        name: 'ShadowAI',
+        icon: 'src/assets/shadowai',
         // use `security find-identity -v -p codesigning` to find your identity
         // for macos signing
         // also fuck apple
@@ -34,18 +34,22 @@ module.exports = {
         {
             name: '@electron-forge/maker-dmg',
             platforms: ['darwin'],
+            config: {
+                name: 'ShadowAI',
+                icon: 'src/assets/shadowai.icns',
+            },
         },
         {
             name: '@reforged/maker-appimage',
             platforms: ['linux'],
             config: {
                 options: {
-                    name: 'Meta Max Pro',
-                    productName: 'Meta Max Pro',
+                    name: 'ShadowAI',
+                    productName: 'ShadowAI',
                     genericName: 'AI Assistant',
-                    description: 'AI assistant for interviews and learning',
+                    description: 'Stealth AI interview assistant',
                     categories: ['Development', 'Education'],
-                    icon: 'src/assets/logo.png'
+                    icon: 'src/assets/shadowai.png'
                 }
             },
         },
