@@ -280,9 +280,9 @@ function getTodayLimits() {
             todayEntry.groq = {};
         }
         const groqDefaults = {
-            'llama-3.3-70b-versatile': { chars: 0, limit: 1500000 },
-            'llama-3.1-70b-versatile': { chars: 0, limit: 1000000 },
-            'llama-3.1-8b-instant': { chars: 0, limit: 2000000 }
+            'openai/gpt-oss-120b': { chars: 0, limit: 500000 },
+            'openai/gpt-oss-20b':  { chars: 0, limit: 1000000 },
+            'qwen/qwen3.8-27b':    { chars: 0, limit: 1500000 },
         };
         for (const [k, v] of Object.entries(groqDefaults)) {
             if (!todayEntry.groq[k]) todayEntry.groq[k] = v;
@@ -303,9 +303,9 @@ function getTodayLimits() {
         flash: { count: 0 },
         flashLite: { count: 0 },
         groq: {
-            'llama-3.3-70b-versatile': { chars: 0, limit: 1500000 },
-            'llama-3.1-70b-versatile': { chars: 0, limit: 1000000 },
-            'llama-3.1-8b-instant': { chars: 0, limit: 2000000 }
+            'openai/gpt-oss-120b': { chars: 0, limit: 500000 },
+            'openai/gpt-oss-20b':  { chars: 0, limit: 1000000 },
+            'qwen/qwen3.8-27b':    { chars: 0, limit: 1500000 },
         },
         gemini: {
             'gemma-3-27b-it': { chars: 0 }
@@ -382,14 +382,14 @@ function getModelForToday() {
     const todayEntry = getTodayLimits();
     const groq = todayEntry.groq;
 
-    if (groq['llama-3.3-70b-versatile'] && groq['llama-3.3-70b-versatile'].chars < groq['llama-3.3-70b-versatile'].limit) {
-        return 'llama-3.3-70b-versatile';
+    if (groq['openai/gpt-oss-120b'] && groq['openai/gpt-oss-120b'].chars < groq['openai/gpt-oss-120b'].limit) {
+        return 'openai/gpt-oss-120b';
     }
-    if (groq['llama-3.1-70b-versatile'] && groq['llama-3.1-70b-versatile'].chars < groq['llama-3.1-70b-versatile'].limit) {
-        return 'llama-3.1-70b-versatile';
+    if (groq['openai/gpt-oss-20b'] && groq['openai/gpt-oss-20b'].chars < groq['openai/gpt-oss-20b'].limit) {
+        return 'openai/gpt-oss-20b';
     }
-    if (groq['llama-3.1-8b-instant'] && groq['llama-3.1-8b-instant'].chars < groq['llama-3.1-8b-instant'].limit) {
-        return 'llama-3.1-8b-instant';
+    if (groq['qwen/qwen3.8-27b'] && groq['qwen/qwen3.8-27b'].chars < groq['qwen/qwen3.8-27b'].limit) {
+        return 'qwen/qwen3.8-27b';
     }
 
     // All limits exhausted

@@ -651,7 +651,8 @@ async function sendToGroq(transcription) {
                 stream: true,
                 temperature: 0.7,
                 max_tokens: ['system_design', 'coding'].includes(questionType) ? 4096 : 700,
-                reasoning_effort: 'none'
+                // reasoning_effort only supported by Qwen thinking models
+                ...(modelToUse.includes('qwen') ? { reasoning_effort: 'none' } : {}),
             })
         });
 
