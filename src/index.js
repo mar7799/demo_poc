@@ -4,8 +4,24 @@ if (require('electron-squirrel-startup')) {
 
 const { app, BrowserWindow, shell, ipcMain, Menu } = require('electron');
 
-// Remove default Electron menu bar (File, Edit, View…) — app runs as a stealth overlay
-Menu.setApplicationMenu(null);
+// Keep a minimal Edit menu so Cmd+C/V/X/A/Z work in input fields.
+// The menu bar itself is never visible (accessory activation policy hides it),
+// but macOS needs the menu registered to route clipboard shortcuts to web content.
+Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+        label: 'Edit',
+        submenu: [
+            { role: 'undo' },
+            { role: 'redo' },
+            { type: 'separator' },
+            { role: 'cut' },
+            { role: 'copy' },
+            { role: 'paste' },
+            { role: 'pasteAndMatchStyle' },
+            { role: 'selectAll' },
+        ],
+    },
+]));
 
 // macOS: hide from Dock and Cmd+Tab before the window is created.
 // 'accessory' policy = no Dock icon, no app-switcher entry, but global shortcuts still work.
