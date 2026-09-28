@@ -32,7 +32,7 @@ The app is not code-signed. Both macOS and Windows will show a warning on first 
 
 **Option B — Remove quarantine flag:**
 ```bash
-xattr -cr "/Applications/ShadowAI.app"
+xattr -d com.apple.quarantine "/Applications/ShadowAI.app"
 ```
 
 ### Windows — "Windows protected your PC"
@@ -46,18 +46,24 @@ For the ZIP: extract, right-click `ShadowAI.exe` → **Properties** → check **
 ## Before You Run — Required First Time
 
 > [!IMPORTANT]
-> **Run this command once before launching the app, or audio capture will silently fail.**
+> **Do this once before launching, or audio capture will silently fail.**
 
-macOS blocks the system audio binary with a quarantine flag the first time it's downloaded. Remove it with:
+macOS quarantines the system audio binary when it's downloaded. There are two ways to clear it:
 
-**Installed app (from DMG):**
+**Option A — Terminal (recommended):**
 ```bash
-xattr -cr "/Applications/ShadowAI.app"
+xattr -d com.apple.quarantine "/Applications/ShadowAI.app"
+xattr -d com.apple.quarantine "/Applications/ShadowAI.app/Contents/Resources/SystemAudioDump"
 ```
+
+**Option B — No terminal:**
+1. Open **System Settings → Privacy & Security**
+2. Scroll down — you'll see a message about ShadowAI being blocked
+3. Click **Open Anyway**
 
 **Development (running from source):**
 ```bash
-xattr -cr "/path/to/ShadowAI/src/assets/SystemAudioDump"
+xattr -d com.apple.quarantine "/path/to/ShadowAI/src/assets/SystemAudioDump"
 chmod +x "/path/to/ShadowAI/src/assets/SystemAudioDump"
 ```
 
