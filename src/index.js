@@ -2,7 +2,17 @@ if (require('electron-squirrel-startup')) {
     process.exit(0);
 }
 
-const { app, BrowserWindow, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, Menu } = require('electron');
+
+// Remove default Electron menu bar (File, Edit, View…) — app runs as a stealth overlay
+Menu.setApplicationMenu(null);
+
+// macOS: hide from Dock and Cmd+Tab before the window is created.
+// 'accessory' policy = no Dock icon, no app-switcher entry, but global shortcuts still work.
+if (process.platform === 'darwin') {
+    app.dock.hide();
+    app.setActivationPolicy('accessory');
+}
 const { createWindow, updateGlobalShortcuts } = require('./utils/window');
 const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
 const storage = require('./storage');
