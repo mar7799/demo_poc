@@ -43,31 +43,39 @@ For the ZIP: extract, right-click `ShadowAI.exe` → **Properties** → check **
 
 ---
 
-## Before You Run — Required First Time
+## macOS Install — Do This In Order
 
 > [!IMPORTANT]
-> **Do this once before launching, or audio capture will silently fail.**
+> Follow these steps exactly. Running `xattr` before the app is in Applications will fail with "no such file".
 
-macOS quarantines the system audio binary when it's downloaded. There are two ways to clear it:
+**Step 1 — Install the app:**
+1. Open `ShadowAI.dmg`
+2. Drag `ShadowAI.app` into the **Applications** folder
+3. Eject the DMG
 
-**Option A — Terminal (recommended):**
+**Step 2 — Clear the quarantine flag** (or audio capture will silently fail):
+
+Option A — Terminal:
 ```bash
 xattr -d com.apple.quarantine "/Applications/ShadowAI.app"
 xattr -d com.apple.quarantine "/Applications/ShadowAI.app/Contents/Resources/SystemAudioDump"
 ```
 
-**Option B — No terminal:**
+Option B — No terminal:
 1. Open **System Settings → Privacy & Security**
-2. Scroll down — you'll see a message about ShadowAI being blocked
+2. Scroll down to the blocked app notice
 3. Click **Open Anyway**
 
-**Development (running from source):**
-```bash
-xattr -d com.apple.quarantine "/path/to/ShadowAI/src/assets/SystemAudioDump"
-chmod +x "/path/to/ShadowAI/src/assets/SystemAudioDump"
-```
+**Step 3 — Launch:**
+Double-click `ShadowAI.app` in Applications, or run `npm start` from source.
 
-You only need to do this once. If the app launches but produces no AI responses when the interviewer speaks, this is almost always the cause.
+The window appears at the top of your screen. The app is invisible in Dock and Cmd+Tab — that is by design.
+
+> **Development (from source):**
+> ```bash
+> xattr -d com.apple.quarantine "/path/to/ShadowAI/src/assets/SystemAudioDump"
+> chmod +x "/path/to/ShadowAI/src/assets/SystemAudioDump"
+> ```
 
 ---
 
