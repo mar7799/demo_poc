@@ -55,13 +55,18 @@ For the ZIP: extract, right-click `ShadowAI.exe` → **Properties** → check **
 
 **Step 2 — Clear the quarantine flag** (or audio capture will silently fail):
 
-Option A — Terminal:
+Option A — Terminal (macOS Monterey 12+ / newer):
+```bash
+xattr -cr "/Applications/ShadowAI.app"
+```
+
+Option B — Terminal (all macOS versions, use if Option A says "option -r not recognized"):
 ```bash
 xattr -d com.apple.quarantine "/Applications/ShadowAI.app"
 xattr -d com.apple.quarantine "/Applications/ShadowAI.app/Contents/Resources/SystemAudioDump"
 ```
 
-Option B — No terminal:
+Option C — No terminal (any version):
 1. Open **System Settings → Privacy & Security**
 2. Scroll down to the blocked app notice
 3. Click **Open Anyway**
