@@ -65,6 +65,19 @@ You only need to do this once. If the app launches but produces no AI responses 
 
 ---
 
+## Run ShadowAI
+
+**Every time you want to start the app:**
+
+```bash
+cd "/path/to/ShadowAI"
+npm start
+```
+
+The window will appear at the top of your screen. It is invisible in the Dock and Cmd+Tab — use the keyboard shortcuts to interact with it.
+
+---
+
 ## Setup
 
 ### 1. Get API Keys
