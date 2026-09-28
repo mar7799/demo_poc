@@ -43,6 +43,28 @@ For the ZIP: extract, right-click `Meta Max Pro.exe` → **Properties** → chec
 
 ---
 
+## Before You Run — Required First Time
+
+> [!IMPORTANT]
+> **Run this command once before launching the app, or audio capture will silently fail.**
+
+macOS blocks the system audio binary with a quarantine flag the first time it's downloaded. Remove it with:
+
+**Installed app (from DMG):**
+```bash
+xattr -cr "/Applications/Meta Max Pro.app"
+```
+
+**Development (running from source):**
+```bash
+xattr -cr "/path/to/meta max pro/src/assets/SystemAudioDump"
+chmod +x "/path/to/meta max pro/src/assets/SystemAudioDump"
+```
+
+You only need to do this once. If the app launches but produces no AI responses when the interviewer speaks, this is almost always the cause.
+
+---
+
 ## Setup
 
 ### 1. Get API Keys
