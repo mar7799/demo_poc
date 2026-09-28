@@ -4,6 +4,7 @@ const { spawn } = require('child_process');
 const { saveDebugAudio } = require('../audioUtils');
 const { getSystemPrompt, buildDynamicPrompt } = require('./prompts');
 const { classifyQuestion } = require('./classifier');
+const { checkTruncation, fixFormat, validateClassification, record: auditRecord } = require('./audit');
 const { getAvailableModel, incrementLimitCount, getApiKey, getGroqApiKey, getAnthropicApiKey, incrementCharUsage, getModelForToday, saveSession: persistSession } = require('../storage');
 const { connectCloud, sendCloudAudio, sendCloudText, sendCloudImage, closeCloud, setOnTurnComplete } = require('./cloud');
 const { startWhisperVAD, stopWhisperVAD, processAudioChunk: processWhisperChunk } = require('./whisper');
@@ -589,12 +590,10 @@ async function sendToGroq(transcription) {
     const questionToAnswer = intent;
     const assumptionPrefix = '';
 
-    // Build a focused, type-specific prompt instead of the full monolithic prompt.
-    // Only applies to interview profile — all other profiles use currentSystemPrompt as-is.
+    // Use dynamic classifier for system_design and coding regardless of profile
     let activeSystemPrompt = currentSystemPrompt || 'You are a helpful assistant.';
-    let questionType = 'technical';
-    if (currentProfile === 'interview') {
-        questionType = classifyQuestion(questionToAnswer, groqConversationHistory);
+    let questionType = classifyQuestion(questionToAnswer, groqConversationHistory);
+    if (currentProfile === 'interview' || ['system_design', 'coding'].includes(questionType)) {
         activeSystemPrompt = buildDynamicPrompt(questionType, currentCustomPrompt || '');
         console.log(`[Classifier] Type: ${questionType} | Prompt: ${activeSystemPrompt.length} chars`);
     }
@@ -617,6 +616,23 @@ async function sendToGroq(transcription) {
         groqConversationHistory = groqConversationHistory.slice(-20);
     }
 
+    // For coding/technical, strip mermaid diagrams from history and cap total size
+    let groqHistoryForRequest = groqConversationHistory.slice();
+    if (questionType === 'coding' || questionType === 'technical') {
+        groqHistoryForRequest = groqHistoryForRequest.map(m => {
+            if (m.role === 'assistant' && m.content.includes('```mermaid')) {
+                return { ...m, content: m.content.replace(/```mermaid[\s\S]*?```/g, '[diagram omitted]') };
+            }
+            return m;
+        });
+    }
+    const GROQ_HISTORY_CHAR_LIMIT = 20000;
+    let groqHistoryChars = groqHistoryForRequest.reduce((s, m) => s + m.content.length, 0);
+    while (groqHistoryForRequest.length > 2 && groqHistoryChars > GROQ_HISTORY_CHAR_LIMIT) {
+        const removed = groqHistoryForRequest.shift();
+        groqHistoryChars -= removed.content.length;
+    }
+
     try {
         currentGroqAbortController = new AbortController();
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -630,7 +646,7 @@ async function sendToGroq(transcription) {
                 model: modelToUse,
                 messages: [
                     { role: 'system', content: activeSystemPrompt },
-                    ...groqConversationHistory
+                    ...groqHistoryForRequest
                 ],
                 stream: true,
                 temperature: 0.7,
@@ -691,19 +707,30 @@ async function sendToGroq(transcription) {
         const modelKey = modelToUse.split('/').pop();
 
         const systemPromptChars = activeSystemPrompt.length;
-        const historyChars = groqConversationHistory.reduce((sum, msg) => sum + (msg.content || '').length, 0);
-        const inputChars = systemPromptChars + historyChars;
+        const groqHistoryChars = groqHistoryForRequest.reduce((sum, msg) => sum + (msg.content || '').length, 0);
+        const inputChars = systemPromptChars + groqHistoryChars;
         const outputChars = cleanedResponse.length;
 
         incrementCharUsage('groq', modelKey, inputChars + outputChars);
 
         if (cleanedResponse) {
+            // ── Self-healing audit ──────────────────────────────────────────
+            const truncationReason = checkTruncation(cleanedResponse);
+            const classificationWarning = validateClassification(questionType, cleanedResponse);
+            auditRecord({ provider: 'groq', questionType, maxTokens: ['system_design', 'coding'].includes(questionType) ? 4096 : 700, historyChars: groqHistoryChars, responseChars: cleanedResponse.length, truncationReason, classificationWarning });
+
+            const finalGroqText = fixFormat(cleanedResponse);
+            if (finalGroqText !== cleanedResponse) {
+                console.log('[Audit] Groq format fixed — sending corrected response');
+                sendToRenderer('update-response', finalGroqText);
+            }
+
             groqConversationHistory.push({
                 role: 'assistant',
-                content: cleanedResponse
+                content: finalGroqText || cleanedResponse
             });
 
-            saveConversationTurn(questionToAnswer, cleanedResponse);
+            saveConversationTurn(questionToAnswer, finalGroqText || cleanedResponse);
         }
 
         console.log(`Groq response completed (${modelToUse})`);
@@ -883,11 +910,10 @@ async function sendToAnthropic(transcription) {
 
     const questionToAnswer = intent;
 
-    // Use dynamic classifier prompt — same as sendToGroq
+    // Use dynamic classifier prompt for system_design and coding regardless of profile
     let activeSystemPrompt = currentSystemPrompt || 'You are a helpful assistant.';
-    let questionType = 'technical'; // default — must be declared here so maxTokensByType can use it
-    if (currentProfile === 'interview') {
-        questionType = classifyQuestion(questionToAnswer, groqConversationHistory);
+    let questionType = classifyQuestion(questionToAnswer, groqConversationHistory);
+    if (currentProfile === 'interview' || ['system_design', 'coding'].includes(questionType)) {
         activeSystemPrompt = buildDynamicPrompt(questionType, currentCustomPrompt || '');
         console.log(`[Anthropic Classifier] Type: ${questionType} | Prompt: ${activeSystemPrompt.length} chars`);
     }
@@ -898,7 +924,25 @@ async function sendToAnthropic(transcription) {
     }
 
     // Build messages array (Anthropic format: no system in messages array)
-    const messages = groqConversationHistory.map(m => ({
+    // For coding/technical questions, strip mermaid diagrams from history — they can be
+    // thousands of chars and silently eat the token budget, causing truncated code output.
+    let historyForRequest = groqConversationHistory.slice();
+    if (questionType === 'coding' || questionType === 'technical') {
+        historyForRequest = historyForRequest.map(m => {
+            if (m.role === 'assistant' && m.content.includes('```mermaid')) {
+                return { ...m, content: m.content.replace(/```mermaid[\s\S]*?```/g, '[diagram omitted]') };
+            }
+            return m;
+        });
+    }
+    // Cap total history to ~25000 chars to leave the model room to generate full responses
+    const HISTORY_CHAR_LIMIT = 25000;
+    let totalHistoryChars = historyForRequest.reduce((s, m) => s + m.content.length, 0);
+    while (historyForRequest.length > 2 && totalHistoryChars > HISTORY_CHAR_LIMIT) {
+        const removed = historyForRequest.shift();
+        totalHistoryChars -= removed.content.length;
+    }
+    const messages = historyForRequest.map(m => ({
         role: m.role === 'assistant' ? 'assistant' : 'user',
         content: m.content,
     }));
@@ -913,13 +957,28 @@ async function sendToAnthropic(transcription) {
         situational: 600,
         ambiguous: 500,
         system_design: 4096,
-        coding: 4096,
+        coding: 8000,
     };
     const maxTokens = maxTokensByType[questionType] || 600;
 
     console.log(`[Anthropic] Sending to claude-sonnet-4-6 (${questionType}, max_tokens=${maxTokens}): "${questionToAnswer.substring(0, 80)}..."`);
     sendToRenderer('update-status', 'Thinking...');
 
+    await _streamAndHeal({
+        anthropicApiKey,
+        activeSystemPrompt,
+        messages,
+        maxTokens,
+        questionType,
+        questionToAnswer,
+        historyChars: totalHistoryChars,
+        isRetry: false,
+    });
+}
+
+// Streams a single Anthropic request, detects truncation, auto-retries once with
+// stripped history if the response was cut off.
+async function _streamAndHeal({ anthropicApiKey, activeSystemPrompt, messages, maxTokens, questionType, questionToAnswer, historyChars, isRetry }) {
     try {
         currentGroqAbortController = new AbortController();
         const response = await fetchWithAnthropicRetry(
@@ -943,11 +1002,7 @@ async function sendToAnthropic(transcription) {
             'Sonnet'
         );
 
-        if (!response) {
-            // Aborted — new input arrived, silently discard
-            return;
-        }
-
+        if (!response) return; // Aborted — new input arrived
         if (!response.ok) {
             const errText = await response.text();
             console.error('[Anthropic] API error after retries:', response.status, errText);
@@ -966,13 +1021,12 @@ async function sendToAnthropic(transcription) {
 
             anthropicSseBuffer += decoder.decode(value, { stream: true });
             const lines = anthropicSseBuffer.split('\n');
-            anthropicSseBuffer = lines.pop(); // keep any incomplete line
+            anthropicSseBuffer = lines.pop();
 
             for (const line of lines) {
                 if (!line.startsWith('data: ')) continue;
                 const data = line.slice(6).trim();
                 if (!data || data === '[DONE]') continue;
-
                 try {
                     const json = JSON.parse(data);
                     if (json.type === 'content_block_delta' && json.delta?.type === 'text_delta') {
@@ -983,12 +1037,52 @@ async function sendToAnthropic(transcription) {
             }
         }
 
-        if (fullText) {
-            groqConversationHistory.push({ role: 'assistant', content: fullText });
-            saveConversationTurn(questionToAnswer, fullText);
+        console.log('[Anthropic] Response completed');
+
+        if (!fullText) {
+            sendToRenderer('update-status', 'Listening...');
+            return;
         }
 
-        console.log('[Anthropic] Response completed');
+        // ── Self-healing audit ──────────────────────────────────────────────
+        const truncationReason = checkTruncation(fullText);
+        const classificationWarning = validateClassification(questionType, fullText);
+        auditRecord({ provider: 'anthropic', questionType, maxTokens, historyChars, responseChars: fullText.length, truncationReason, classificationWarning, isRetry });
+
+        if (truncationReason && !isRetry) {
+            // Response was cut off — strip the incomplete assistant turn, trim history,
+            // and retry once with a clean 4-message context.
+            console.log(`[Audit] Auto-healing truncation (${truncationReason}) — retrying with stripped history`);
+            sendToRenderer('update-status', 'Fixing truncated response...');
+
+            // Drop messages older than the last 2 turns so the retry starts fresh
+            const retryMessages = messages.slice(-2);
+            const retryHistoryChars = retryMessages.reduce((s, m) => s + m.content.length, 0);
+
+            await _streamAndHeal({
+                anthropicApiKey,
+                activeSystemPrompt,
+                messages: retryMessages,
+                maxTokens,
+                questionType,
+                questionToAnswer,
+                historyChars: retryHistoryChars,
+                isRetry: true,
+            });
+            // The retry will push its own assistant turn — don't push the truncated one
+            return;
+        }
+
+        // Apply format fixer: strip any headers/bullets the model smuggled through
+        const cleanText = fixFormat(fullText);
+        if (cleanText !== fullText) {
+            console.log('[Audit] Format fixed — sending corrected response');
+            sendToRenderer('update-response', cleanText);
+        }
+
+        const finalText = cleanText || fullText;
+        groqConversationHistory.push({ role: 'assistant', content: finalText });
+        saveConversationTurn(questionToAnswer, finalText);
         sendToRenderer('update-status', 'Listening...');
 
     } catch (error) {

@@ -117,6 +117,10 @@ function getDefaultKeybinds() {
         scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
         scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
         emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
+        resizeTaller: isMac ? 'Alt+Shift+Up' : 'Ctrl+Shift+Alt+Up',
+        resizeShorter: isMac ? 'Alt+Shift+Down' : 'Ctrl+Shift+Alt+Down',
+        resizeWider: isMac ? 'Alt+Shift+Right' : 'Ctrl+Shift+Alt+Right',
+        resizeNarrower: isMac ? 'Alt+Shift+Left' : 'Ctrl+Shift+Alt+Left',
     };
 }
 
@@ -379,6 +383,45 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
             console.log(`Registered emergencyErase: ${keybinds.emergencyErase}`);
         } catch (error) {
             console.error(`Failed to register emergencyErase (${keybinds.emergencyErase}):`, error);
+        }
+    }
+
+    // Resize shortcuts — step 80px, bounded by screen size
+    const RESIZE_STEP = 80;
+    const resizeActions = {
+        resizeTaller: () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return;
+            const { height: screenH } = screen.getPrimaryDisplay().workAreaSize;
+            const [w, h] = mainWindow.getSize();
+            mainWindow.setSize(w, Math.min(h + RESIZE_STEP, screenH));
+        },
+        resizeShorter: () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return;
+            const [w, h] = mainWindow.getSize();
+            mainWindow.setSize(w, Math.max(h - RESIZE_STEP, 200));
+        },
+        resizeWider: () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return;
+            const { width: screenW } = screen.getPrimaryDisplay().workAreaSize;
+            const [w, h] = mainWindow.getSize();
+            mainWindow.setSize(Math.min(w + RESIZE_STEP, screenW), h);
+        },
+        resizeNarrower: () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return;
+            const [w, h] = mainWindow.getSize();
+            mainWindow.setSize(Math.max(w - RESIZE_STEP, 320), h);
+        },
+    };
+
+    for (const [action, fn] of Object.entries(resizeActions)) {
+        const keybind = keybinds[action];
+        if (keybind) {
+            try {
+                globalShortcut.register(keybind, fn);
+                console.log(`Registered ${action}: ${keybind}`);
+            } catch (error) {
+                console.error(`Failed to register ${action} (${keybind}):`, error);
+            }
         }
     }
 }

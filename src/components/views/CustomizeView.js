@@ -339,6 +339,10 @@ export class CustomizeView extends LitElement {
             scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
             scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
             emergencyErase: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
+            resizeTaller: isMac ? 'Alt+Shift+Up' : 'Ctrl+Shift+Alt+Up',
+            resizeShorter: isMac ? 'Alt+Shift+Down' : 'Ctrl+Shift+Alt+Down',
+            resizeWider: isMac ? 'Alt+Shift+Right' : 'Ctrl+Shift+Alt+Right',
+            resizeNarrower: isMac ? 'Alt+Shift+Left' : 'Ctrl+Shift+Alt+Left',
         };
     }
 
@@ -360,6 +364,10 @@ export class CustomizeView extends LitElement {
             { key: 'pinCloseAll', name: 'Close All Pins', description: 'Close all open pinned design/code panels at once' },
             { key: 'scrollUp', name: 'Scroll Response Up', description: 'Scroll response content upward' },
             { key: 'scrollDown', name: 'Scroll Response Down', description: 'Scroll response content downward' },
+            { key: 'resizeTaller', name: 'Resize Taller', description: 'Increase window height by 80px' },
+            { key: 'resizeShorter', name: 'Resize Shorter', description: 'Decrease window height by 80px' },
+            { key: 'resizeWider', name: 'Resize Wider', description: 'Increase window width by 80px' },
+            { key: 'resizeNarrower', name: 'Resize Narrower', description: 'Decrease window width by 80px' },
             { key: 'emergencyErase', name: 'Emergency Erase', description: 'Hide window and clear all responses immediately' },
         ];
     }

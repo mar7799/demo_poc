@@ -36,7 +36,7 @@ const DEFAULT_PREFERENCES = {
 const DEFAULT_KEYBINDS = null; // null means use system defaults
 
 const DEFAULT_LIMITS = {
-    data: [] // Array of { date: 'YYYY-MM-DD', flash: { count }, flashLite: { count }, groq: { 'qwen3-32b': { chars, limit }, 'gpt-oss-120b': { chars, limit }, 'gpt-oss-20b': { chars, limit } }, gemini: { 'gemma-3-27b-it': { chars } } }
+    data: [] // Array of { date: 'YYYY-MM-DD', flash: { count }, flashLite: { count }, groq: { 'llama-3.3-70b-versatile': { chars, limit }, ... }, gemini: { 'gemma-3-27b-it': { chars } } }
 };
 
 // Get the config directory path based on OS
@@ -277,12 +277,15 @@ function getTodayLimits() {
     if (todayEntry) {
         // ensure new fields exist
         if(!todayEntry.groq) {
-            todayEntry.groq = {
-                'qwen3-32b': { chars: 0, limit: 1500000 },
-                'gpt-oss-120b': { chars: 0, limit: 600000 },
-                'gpt-oss-20b': { chars: 0, limit: 600000 },
-                'kimi-k2-instruct': { chars: 0, limit: 600000 }
-            };
+            todayEntry.groq = {};
+        }
+        const groqDefaults = {
+            'llama-3.3-70b-versatile': { chars: 0, limit: 1500000 },
+            'llama-3.1-70b-versatile': { chars: 0, limit: 1000000 },
+            'llama-3.1-8b-instant': { chars: 0, limit: 2000000 }
+        };
+        for (const [k, v] of Object.entries(groqDefaults)) {
+            if (!todayEntry.groq[k]) todayEntry.groq[k] = v;
         }
         if(!todayEntry.gemini) {
             todayEntry.gemini = {
@@ -300,10 +303,9 @@ function getTodayLimits() {
         flash: { count: 0 },
         flashLite: { count: 0 },
         groq: {
-            'qwen3-32b': { chars: 0, limit: 1500000 },
-            'gpt-oss-120b': { chars: 0, limit: 600000 },
-            'gpt-oss-20b': { chars: 0, limit: 600000 },
-            'kimi-k2-instruct': { chars: 0, limit: 600000 }
+            'llama-3.3-70b-versatile': { chars: 0, limit: 1500000 },
+            'llama-3.1-70b-versatile': { chars: 0, limit: 1000000 },
+            'llama-3.1-8b-instant': { chars: 0, limit: 2000000 }
         },
         gemini: {
             'gemma-3-27b-it': { chars: 0 }
@@ -380,17 +382,14 @@ function getModelForToday() {
     const todayEntry = getTodayLimits();
     const groq = todayEntry.groq;
 
-    if (groq['qwen3-32b'].chars < groq['qwen3-32b'].limit) {
-        return 'qwen/qwen3-32b';
+    if (groq['llama-3.3-70b-versatile'] && groq['llama-3.3-70b-versatile'].chars < groq['llama-3.3-70b-versatile'].limit) {
+        return 'llama-3.3-70b-versatile';
     }
-    if (groq['gpt-oss-120b'].chars < groq['gpt-oss-120b'].limit) {
-        return 'openai/gpt-oss-120b';
+    if (groq['llama-3.1-70b-versatile'] && groq['llama-3.1-70b-versatile'].chars < groq['llama-3.1-70b-versatile'].limit) {
+        return 'llama-3.1-70b-versatile';
     }
-    if (groq['gpt-oss-20b'].chars < groq['gpt-oss-20b'].limit) {
-        return 'openai/gpt-oss-20b';
-    }
-    if (groq['kimi-k2-instruct'].chars < groq['kimi-k2-instruct'].limit) {
-        return 'moonshotai/kimi-k2-instruct';
+    if (groq['llama-3.1-8b-instant'] && groq['llama-3.1-8b-instant'].chars < groq['llama-3.1-8b-instant'].limit) {
+        return 'llama-3.1-8b-instant';
     }
 
     // All limits exhausted

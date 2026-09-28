@@ -1,3 +1,10 @@
+# Session / interview history — never commit, back up separately
+conversation.md
+conversations/
+interviews/
+session-*.md
+session-*.json
+
 # Logs
 src/data
 logs

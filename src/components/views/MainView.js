@@ -531,7 +531,8 @@ export class MainView extends LitElement {
             ]);
 
             const savedMode = prefs.providerMode || 'cloud';
-            this._mode = savedMode === 'local' ? 'byok' : savedMode;
+            const mapped = savedMode === 'local' ? 'byok' : savedMode;
+            this._mode = ['cloud', 'byok', 'anthropic'].includes(mapped) ? mapped : 'anthropic';
 
             // Load keys
             this._token = creds.cloudToken || '';
@@ -951,7 +952,7 @@ export class MainView extends LitElement {
                 <div class="page-title">
                     ${this._mode === 'cloud' ? 'Meta Max Pro Cloud' :
                       this._mode === 'anthropic' ? html`Meta Max Pro <span class="mode-suffix">Claude</span>` :
-                      html`Meta Max Pro <span class="mode-suffix">BYOK</span>`}
+                      'Meta Max Pro'}
                 </div>
                 <div class="page-subtitle">
                     ${this._mode === 'cloud' ? 'Enter your invite code to get started' :

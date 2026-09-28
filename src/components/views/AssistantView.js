@@ -187,12 +187,12 @@ export class AssistantView extends LitElement {
             border-radius: var(--radius-md);
             padding: var(--space-md);
             margin: 0.8em 0;
-            text-align: center;
             overflow-x: auto;
         }
 
         .response-container .mermaid svg {
-            max-width: 100%;
+            display: block;
+            width: 100%;
             height: auto;
         }
 
@@ -316,8 +316,8 @@ export class AssistantView extends LitElement {
             flex-direction: column;
             gap: 0;
             overflow-y: auto;
-            max-height: 260px;
-            flex-shrink: 0;
+            max-height: 55vh;
+            flex-shrink: 1;
             background: var(--bg-surface);
             border-top: 1px solid var(--border);
         }
@@ -396,12 +396,12 @@ export class AssistantView extends LitElement {
             border-radius: var(--radius-md);
             padding: var(--space-sm);
             margin: 0.4em 0;
-            text-align: center;
             overflow-x: auto;
         }
 
         .pinned-panel .mermaid svg {
-            max-width: 100%;
+            display: block;
+            width: 100%;
             height: auto;
         }
 
@@ -575,6 +575,12 @@ export class AssistantView extends LitElement {
         this._designCount = 0;
         this._codeCount = 0;
         this._pinFocusIndex = -1;
+        // Typewriter state
+        this._twTarget = '';
+        this._twShown = '';
+        this._twRafId = null;
+        this._twResponseIdx = -1;
+        this._twIsHelper = false;
     }
 
     getProfileNames() {
@@ -1057,55 +1063,116 @@ export class AssistantView extends LitElement {
 
     updateResponseContent() {
         const container = this.shadowRoot.querySelector('#responseContainer');
-        if (container) {
-            const currentResponse = this.getCurrentResponse();
-            const HELPER_MARKER = '\u{1F4AC}__HELPER__\n';
-            const isHelper = currentResponse.startsWith(HELPER_MARKER);
-            const displayText = isHelper ? currentResponse.slice(HELPER_MARKER.length) : currentResponse;
+        if (!container) return;
 
-            if (isHelper) {
-                container.classList.add('helper-response');
-                container.innerHTML = '<div class="helper-badge">💬 From your helper</div>' + this.renderMarkdown(displayText);
-            } else {
-                container.classList.remove('helper-response');
-                container.innerHTML = this.renderMarkdown(displayText);
-            }
+        const currentResponse = this.getCurrentResponse();
+        const HELPER_MARKER = '\u{1F4AC}__HELPER__\n';
+        const isHelper = currentResponse.startsWith(HELPER_MARKER);
+        const fullText = isHelper ? currentResponse.slice(HELPER_MARKER.length) : currentResponse;
 
-            // Debounce mermaid rendering — updateResponseContent fires on every streaming chunk,
-            // so we wait until streaming settles before rendering diagrams
-            if (typeof window !== 'undefined' && window.mermaid && container.querySelector('.mermaid')) {
-                if (this._mermaidTimer) clearTimeout(this._mermaidTimer);
-                this._mermaidTimer = setTimeout(async () => {
-                    const diagrams = container.querySelectorAll('.mermaid');
-                    if (!diagrams.length) return;
-                    for (let i = 0; i < diagrams.length; i++) {
-                        const el = diagrams[i];
-                        const encoded = el.getAttribute('data-code');
-                        if (!encoded) continue;
-                        const raw = decodeURIComponent(escape(atob(encoded)));
-                        const code = raw
-                            .replace(/```\s*"?\s*$/, '').trim()
-                            .split('\n').map(line =>
-                                line.replace(/\["(.+)"\]/g, (_, l) => `["${l.replace(/"/g, '')}"]`)
-                                    .replace(/\("(.+)"\)/g, (_, l) => `("${l.replace(/"/g, '')}")`)
-                                    .replace(/\[([^\]"]*[\/\(\)][^\]"]*)\]/g, (_, l) => `["${l}"]`)
-                                    .replace(/^(\s*participant\s+)([^"\n]*[\/\(\)\.][^"\n]*)$/g, (_, p, name) => `${p}"${name.trim()}"`)
-                            ).join('\n');
-                        try {
-                            const id = 'mermaid-svg-' + i + '-' + Date.now();
-                            const { svg } = await window.mermaid.render(id, code);
-                            el.innerHTML = svg;
-                        } catch (e) {
-                            console.warn('Mermaid render error:', e);
-                            el.innerHTML = `<div style="color:#EF4444;font-size:11px;padding:8px;">Diagram error: ${e.message}</div><pre style="color:#999;font-size:10px;overflow-x:auto;">${code}</pre>`;
-                        }
+        // Navigated to a different response — show instantly, no typewriter
+        if (this._twResponseIdx !== this.currentResponseIndex) {
+            if (this._twRafId) { cancelAnimationFrame(this._twRafId); this._twRafId = null; }
+            this._twResponseIdx = this.currentResponseIndex;
+            this._twTarget = fullText;
+            this._twShown = fullText;
+            this._twIsHelper = isHelper;
+            this._renderToContainer(container, fullText, isHelper, true);
+            container.scrollTop = 0;
+            this._runMermaid(container);
+            return;
+        }
+
+        // Same response receiving new streamed content — drive typewriter
+        const wasAtEnd = this._twShown.length >= this._twTarget.length;
+        this._twTarget = fullText;
+        this._twIsHelper = isHelper;
+        if (wasAtEnd && !this._twRafId) {
+            this._twTick(container, this.currentResponseIndex);
+        }
+        // else: tick is already running; it will pick up the updated target naturally
+    }
+
+    _twTick(container, responseIdx) {
+        this._twRafId = requestAnimationFrame(() => {
+            this._twRafId = null;
+            if (!container.isConnected || this._twResponseIdx !== responseIdx) return;
+            if (this._twShown.length < this._twTarget.length) {
+                // ~12 chars per frame ≈ 720 chars/sec — readable pace without feeling slow
+                const newLen = Math.min(this._twShown.length + 12, this._twTarget.length);
+                this._twShown = this._twTarget.slice(0, newLen);
+                const done = newLen >= this._twTarget.length;
+                this._renderToContainer(container, this._twShown, this._twIsHelper, done);
+                if (!done) {
+                    this._twTick(container, responseIdx);
+                } else {
+                    this._runMermaid(container);
+                    if (this.shouldAnimateResponse) {
+                        this.dispatchEvent(new CustomEvent('response-animation-complete', { bubbles: true, composed: true }));
                     }
-                }, 400);
+                }
             }
-            if (this.shouldAnimateResponse) {
-                this.dispatchEvent(new CustomEvent('response-animation-complete', { bubbles: true, composed: true }));
+        });
+    }
+
+    _renderToContainer(container, text, isHelper, fullRender) {
+        const html = fullRender ? this.renderMarkdown(text) : this.renderMarkdownFast(text);
+        if (isHelper) {
+            container.classList.add('helper-response');
+            container.innerHTML = '<div class="helper-badge">💬 From your helper</div>' + html;
+        } else {
+            container.classList.remove('helper-response');
+            container.innerHTML = html;
+        }
+    }
+
+    renderMarkdownFast(content) {
+        if (typeof window !== 'undefined' && window.marked) {
+            try {
+                window.marked.setOptions({ breaks: true, gfm: true, sanitize: false });
+                let rendered = window.marked.parse(content);
+                rendered = rendered.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g, (_, code) => {
+                    const decoded = code.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+                    const encoded = btoa(unescape(encodeURIComponent(decoded)));
+                    return `<div class="mermaid" data-code="${encoded}"></div>`;
+                });
+                return rendered;
+            } catch (e) {
+                return content;
             }
         }
+        return content;
+    }
+
+    _runMermaid(container) {
+        if (typeof window === 'undefined' || !window.mermaid || !container.querySelector('.mermaid')) return;
+        if (this._mermaidTimer) clearTimeout(this._mermaidTimer);
+        this._mermaidTimer = setTimeout(async () => {
+            const diagrams = container.querySelectorAll('.mermaid');
+            if (!diagrams.length) return;
+            for (let i = 0; i < diagrams.length; i++) {
+                const el = diagrams[i];
+                const encoded = el.getAttribute('data-code');
+                if (!encoded) continue;
+                const raw = decodeURIComponent(escape(atob(encoded)));
+                const code = raw
+                    .replace(/```\s*"?\s*$/, '').trim()
+                    .split('\n').map(line =>
+                        line.replace(/\["(.+)"\]/g, (_, l) => `["${l.replace(/"/g, '')}"]`)
+                            .replace(/\("(.+)"\)/g, (_, l) => `("${l.replace(/"/g, '')}")`)
+                            .replace(/\[([^\]"]*[\/\(\)][^\]"]*)\]/g, (_, l) => `["${l}"]`)
+                            .replace(/^(\s*participant\s+)([^"\n]*[\/\(\)\.][^"\n]*)$/g, (_, p, name) => `${p}"${name.trim()}"`)
+                    ).join('\n');
+                try {
+                    const id = 'mermaid-svg-' + i + '-' + Date.now();
+                    const { svg } = await window.mermaid.render(id, code);
+                    el.innerHTML = svg;
+                } catch (e) {
+                    console.warn('Mermaid render error:', e);
+                    el.innerHTML = `<div style="color:#EF4444;font-size:11px;padding:8px;">Diagram error: ${e.message}</div><pre style="color:#999;font-size:10px;overflow-x:auto;">${code}</pre>`;
+                }
+            }
+        }, 400);
     }
 
     render() {
