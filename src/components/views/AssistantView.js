@@ -18,14 +18,15 @@ export class AssistantView extends LitElement {
         .response-container {
             flex: 1;
             overflow-y: auto;
-            font-size: var(--response-font-size, 15px);
-            line-height: var(--line-height);
+            font-size: var(--response-font-size, 16px);
+            line-height: 1.65;
             background: var(--bg-app);
             padding: var(--space-sm) var(--space-md);
             scroll-behavior: smooth;
             user-select: text;
             cursor: text;
-            color: var(--text-primary);
+            color: #F8F8F2;
+            font-weight: 500;
         }
 
         .response-container * {
@@ -41,6 +42,12 @@ export class AssistantView extends LitElement {
             display: inline-block;
         }
 
+        /* ── RGYB distance-readability palette ── */
+        /* R */ .rgyb-r { color: #FF6E6E; }
+        /* G */ .rgyb-g { color: #50FA7B; }
+        /* Y */ .rgyb-y { color: #FFE66D; }
+        /* B */ .rgyb-b { color: #8BE9FD; }
+
         /* ── Markdown ── */
 
         .response-container h1,
@@ -49,40 +56,45 @@ export class AssistantView extends LitElement {
         .response-container h4,
         .response-container h5,
         .response-container h6 {
-            margin: 1em 0 0.5em 0;
-            color: var(--text-primary);
-            font-weight: var(--font-weight-semibold);
+            margin: 0.9em 0 0.4em 0;
+            font-weight: 700;
         }
 
-        .response-container h1 { font-size: 1.5em; }
-        .response-container h2 { font-size: 1.3em; }
-        .response-container h3 { font-size: 1.15em; }
-        .response-container h4 { font-size: 1.05em; }
+        .response-container h1 { font-size: 1.5em; color: #FF6E6E; }
+        .response-container h2 { font-size: 1.3em; color: #50FA7B; }
+        .response-container h3 { font-size: 1.15em; color: #FFE66D; }
+        .response-container h4 { font-size: 1.05em; color: #8BE9FD; }
         .response-container h5,
-        .response-container h6 { font-size: 1em; }
+        .response-container h6 { font-size: 1em; color: #FF6E6E; }
 
+        /* Paragraphs: cycle R → G → Y → B */
         .response-container p {
-            margin: 0.6em 0;
-            color: var(--text-primary);
+            margin: 0.5em 0;
         }
+        .response-container p:nth-of-type(4n+1) { color: #FF6E6E; }
+        .response-container p:nth-of-type(4n+2) { color: #50FA7B; }
+        .response-container p:nth-of-type(4n+3) { color: #FFE66D; }
+        .response-container p:nth-of-type(4n+0) { color: #8BE9FD; }
 
         .response-container ul,
         .response-container ol {
-            margin: 0.6em 0;
+            margin: 0.5em 0;
             padding-left: 1.5em;
-            color: var(--text-primary);
         }
 
-        .response-container li {
-            margin: 0.3em 0;
-        }
+        /* List items: cycle R → G → Y → B */
+        .response-container li:nth-child(4n+1) { margin: 0.3em 0; color: #FF6E6E; }
+        .response-container li:nth-child(4n+2) { margin: 0.3em 0; color: #50FA7B; }
+        .response-container li:nth-child(4n+3) { margin: 0.3em 0; color: #FFE66D; }
+        .response-container li:nth-child(4n+0) { margin: 0.3em 0; color: #8BE9FD; }
 
         .response-container blockquote {
             margin: 0.8em 0;
             padding: 0.5em 1em;
-            border-left: 2px solid var(--border-strong);
+            border-left: 3px solid #FFE66D;
             background: var(--bg-surface);
             border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            color: #FFE66D;
         }
 
         .response-container code {
@@ -91,6 +103,7 @@ export class AssistantView extends LitElement {
             border-radius: var(--radius-sm);
             font-family: var(--font-mono);
             font-size: 0.85em;
+            color: #8BE9FD;
         }
 
         .response-container pre {
@@ -105,17 +118,20 @@ export class AssistantView extends LitElement {
         .response-container pre code {
             background: none;
             padding: 0;
+            color: #F8F8F2;
         }
 
         .response-container a {
-            color: var(--accent);
+            color: #8BE9FD;
             text-decoration: underline;
             text-underline-offset: 2px;
         }
 
+        /* Bold = always bright yellow — the "say this" signal */
         .response-container strong,
         .response-container b {
-            font-weight: var(--font-weight-semibold);
+            font-weight: 700;
+            color: #FFE66D;
         }
 
         .response-container hr {
