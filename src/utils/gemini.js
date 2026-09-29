@@ -616,6 +616,8 @@ async function sendToGroq(transcription) {
 
     // Strip mermaid diagrams from all history — large diagrams eat token budget for any follow-up
     const hasCustomInstructionsGroq = (currentCustomPrompt || '').includes('CUSTOM INSTRUCTIONS (highest priority');
+    const assistantTurnsGroq = groqConversationHistory.filter(m => m.role === 'assistant').length;
+    const inDeliveryStageGroq = assistantTurnsGroq >= 2;
     let groqHistoryForRequest = groqConversationHistory.slice().map(m => {
         if (m.role === 'assistant' && m.content.includes('```mermaid')) {
             return { ...m, content: m.content.replace(/```mermaid[\s\S]*?```/g, '[diagram omitted]') };
@@ -646,7 +648,7 @@ async function sendToGroq(transcription) {
                 ],
                 stream: true,
                 temperature: 0.7,
-                max_tokens: questionType === 'coding' ? 8000 : questionType === 'system_design' ? (hasCustomInstructionsGroq ? 1200 : 4096) : 700,
+                max_tokens: questionType === 'coding' ? 8000 : questionType === 'system_design' ? (hasCustomInstructionsGroq ? (inDeliveryStageGroq ? 3500 : 1200) : 4096) : 700,
                 // reasoning_effort only supported by Qwen thinking models
                 ...(modelToUse.includes('qwen') ? { reasoning_effort: 'none' } : {}),
             })
@@ -680,7 +682,7 @@ async function sendToGroq(transcription) {
                         messages: [{ role: 'system', content: activeSystemPrompt }, ...groqHistoryForRequest],
                         stream: true,
                         temperature: 0.7,
-                        max_tokens: questionType === 'coding' ? 8000 : questionType === 'system_design' ? (hasCustomInstructionsGroq ? 1200 : 4096) : 700,
+                        max_tokens: questionType === 'coding' ? 8000 : questionType === 'system_design' ? (hasCustomInstructionsGroq ? (inDeliveryStageGroq ? 3500 : 1200) : 4096) : 700,
                         ...(modelToUse.includes('qwen') ? { reasoning_effort: 'none' } : {}),
                     }),
                 });
@@ -751,7 +753,7 @@ async function sendToGroq(transcription) {
             // ── Self-healing audit ──────────────────────────────────────────
             const truncationReason = checkTruncation(cleanedResponse);
             const classificationWarning = validateClassification(questionType, cleanedResponse);
-            auditRecord({ provider: 'groq', questionType, maxTokens: questionType === 'coding' ? 8000 : questionType === 'system_design' ? (hasCustomInstructionsGroq ? 1200 : 4096) : 700, historyChars: groqHistoryChars, responseChars: cleanedResponse.length, truncationReason, classificationWarning });
+            auditRecord({ provider: 'groq', questionType, maxTokens: questionType === 'coding' ? 8000 : questionType === 'system_design' ? (hasCustomInstructionsGroq ? (inDeliveryStageGroq ? 3500 : 1200) : 4096) : 700, historyChars: groqHistoryChars, responseChars: cleanedResponse.length, truncationReason, classificationWarning });
 
             const finalGroqText = fixFormat(cleanedResponse);
             if (finalGroqText !== cleanedResponse) {
@@ -975,8 +977,10 @@ async function sendToAnthropic(transcription) {
         content: m.content,
     }));
 
-    // Dynamic token limit — smaller for conversational answers, full budget for code/diagrams.
-    // When custom instructions are set for system_design, responses are staged/verbal — 1200 is plenty.
+    // Dynamic token limit — smaller for early conversational stages, full budget for delivery.
+    // For system_design with custom instructions: stage 1-2 (clarifying) = 1200, stage 3+ = 3500.
+    const assistantTurns = groqConversationHistory.filter(m => m.role === 'assistant').length;
+    const inDeliveryStage = assistantTurns >= 2;
     const maxTokensByType = {
         technical: 500,
         behavioral: 800,
@@ -985,7 +989,7 @@ async function sendToAnthropic(transcription) {
         resume: 800,
         situational: 600,
         ambiguous: 500,
-        system_design: hasCustomInstructions ? 1200 : 4096,
+        system_design: hasCustomInstructions ? (inDeliveryStage ? 3500 : 1200) : 4096,
         coding: 8000,
     };
     const maxTokens = maxTokensByType[questionType] || 600;
@@ -1492,6 +1496,20 @@ async function sendAudioToGemini(base64Data, geminiSessionRef) {
     }
 }
 
+// Build the system prompt for image requests.
+// When custom instructions are set we can't pre-classify the question type from the
+// screenshot text, so we let the model identify the type from the image itself and
+// apply the user's staged approach accordingly.
+function buildImageSystemPrompt(promptText, customPrompt, history) {
+    const hasCustom = (customPrompt || '').includes('CUSTOM INSTRUCTIONS (highest priority');
+    if (hasCustom) {
+        const ctx = customPrompt.trim();
+        return `Look at the screenshot and identify the type of question shown (system design, coding, behavioral, etc.), then respond following the user's approach below as the primary guide.\n\nUSER'S APPROACH — primary guide:\n=====\n${ctx}\n=====\n\nFor system design: apply the staged approach exactly — start with clarifying questions in the first turn, then advance stage by stage only when the user confirms.\nFor coding: ask about constraints and edge cases before writing any code.\nMatch the exact format and depth the user's instructions specify.`;
+    }
+    const questionType = classifyQuestion(promptText || '', history);
+    return buildDynamicPrompt(questionType, customPrompt || '');
+}
+
 async function sendImageToGeminiHttp(base64Data, prompt) {
     const model = getAvailableModel();
     const apiKey = getApiKey();
@@ -1502,10 +1520,8 @@ async function sendImageToGeminiHttp(base64Data, prompt) {
     try {
         const ai = new GoogleGenAI({ apiKey: apiKey });
 
-        // Classify so custom instructions + type behavior apply to images too
-        const imageQuestionType = classifyQuestion(prompt, groqConversationHistory);
-        const imageSystemPrompt = buildDynamicPrompt(imageQuestionType, currentCustomPrompt || '');
-        console.log(`[Gemini Image Classifier] Type: ${imageQuestionType}`);
+        const imageSystemPrompt = buildImageSystemPrompt(prompt, currentCustomPrompt, groqConversationHistory);
+        console.log(`[Gemini Image] System prompt: ${imageSystemPrompt.length} chars`);
 
         const contents = [
             { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
@@ -1552,10 +1568,8 @@ async function sendImageToAnthropicHttp(images, prompt) {
     }
 
     try {
-        // Classify the screen prompt so custom instructions + type behavior apply to images too
-        const imageQuestionType = classifyQuestion(prompt, groqConversationHistory);
-        const imageSystemPrompt = buildDynamicPrompt(imageQuestionType, currentCustomPrompt || '');
-        console.log(`[Image Classifier] Type: ${imageQuestionType} | Prompt: ${imageSystemPrompt.length} chars`);
+        const imageSystemPrompt = buildImageSystemPrompt(prompt, currentCustomPrompt, groqConversationHistory);
+        console.log(`[Anthropic Image] System prompt: ${imageSystemPrompt.length} chars`);
 
         const imageContent = images.map(data => ({
             type: 'image',
@@ -1571,7 +1585,11 @@ async function sendImageToAnthropicHttp(images, prompt) {
             },
             body: JSON.stringify({
                 model: 'claude-sonnet-4-6',
-                max_tokens: 4096,
+                max_tokens: (() => {
+                    const hasCustom = (currentCustomPrompt || '').includes('CUSTOM INSTRUCTIONS (highest priority');
+                    const deep = groqConversationHistory.filter(m => m.role === 'assistant').length >= 2;
+                    return hasCustom ? (deep ? 3500 : 1500) : 4096;
+                })(),
                 stream: true,
                 system: imageSystemPrompt,
                 messages: [{
@@ -1642,9 +1660,8 @@ async function sendMultipleImagesToGeminiHttp(images, prompt) {
     try {
         const ai = new GoogleGenAI({ apiKey: apiKey });
 
-        const imageQuestionType = classifyQuestion(prompt, groqConversationHistory);
-        const imageSystemPrompt = buildDynamicPrompt(imageQuestionType, currentCustomPrompt || '');
-        console.log(`[Gemini Multi-Image Classifier] Type: ${imageQuestionType}`);
+        const imageSystemPrompt = buildImageSystemPrompt(prompt, currentCustomPrompt, groqConversationHistory);
+        console.log(`[Gemini Multi-Image] System prompt: ${imageSystemPrompt.length} chars`);
 
         const contents = [
             ...images.map(data => ({
@@ -1878,9 +1895,9 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return { success: false, error: 'Image buffer too small' };
             }
 
-            // If there was a previous screen analysis in this session, prepend it
-            // so the model builds on the prior attempt rather than starting fresh
-            const enrichedPrompt = buildEnrichedScreenPrompt(prompt);
+            // Use the prompt as-is for single screenshots — don't bleed previous
+            // response context into a fresh question from a new screenshot
+            const enrichedPrompt = prompt || 'Analyze what is shown in this screenshot and respond.';
 
             process.stdout.write('!');
 

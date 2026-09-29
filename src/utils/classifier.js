@@ -83,24 +83,29 @@ const PATTERNS = {
 };
 
 function classifyQuestion(text, conversationHistory = []) {
-    // Context-aware: if the last AI message was asking design/coding clarifications,
-    // the user is answering those questions — stay in that mode.
+    // Context-aware: if we're mid-conversation on a system_design or coding question,
+    // short stage-advance inputs ("go ahead", "sounds good", "yes") should stay in that mode.
     if (conversationHistory.length > 0) {
         const lastAI = [...conversationHistory].reverse().find(m => m.role === 'assistant');
         if (lastAI && lastAI.content) {
             const c = lastAI.content;
-            // AI just asked system design clarifying questions
-            if (/before I (jump in|draw|design|start the design)/i.test(c) ||
+            // AI was in system design mode — keep it for stage advances
+            const isSystemDesignContext =
+                /before I (jump in|draw|design|start the design)/i.test(c) ||
                 /couple of things that.ll shape the design/i.test(c) ||
-                /what.s the expected (order|request|traffic|user) volume/i.test(c)) {
-                return 'system_design';
-            }
-            // AI just asked coding clarifying questions
-            if (/before I (start|write|code)/i.test(c) ||
+                /what.s the expected (order|request|traffic|user) volume/i.test(c) ||
+                /clarifying question/i.test(c) ||
+                /let me ask/i.test(c) ||
+                /stage (1|2|3|one|two|three)/i.test(c) ||
+                /\b(functional|non.functional)\b/i.test(c);
+            if (isSystemDesignContext) return 'system_design';
+
+            // AI was in coding mode — keep it for stage advances
+            const isCodingContext =
+                /before I (start|write|code)/i.test(c) ||
                 /just a couple quick things/i.test(c) ||
-                /any language preference/i.test(c)) {
-                return 'coding';
-            }
+                /any language preference/i.test(c);
+            if (isCodingContext) return 'coding';
         }
     }
 
