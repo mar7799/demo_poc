@@ -456,14 +456,11 @@ Provide direct exam answers in **markdown format**. Include the question text, t
 function buildSystemPrompt(promptParts, customPrompt = '', googleSearchEnabled = true) {
     const context = customPrompt?.trim() || '';
 
-    // Same rule as buildDynamicPrompt: custom instructions own the session entirely.
-    if (context.includes('CUSTOM INSTRUCTIONS (highest priority')) {
-        return `You MUST follow these instructions EXACTLY. They override everything else.\n=====\n${context}\n=====`;
-    }
-
-    const userBlock = context
-        ? `USER INSTRUCTIONS (highest priority — follow these precisely):\n=====\n${context}\n=====\n\n`
-        : '';
+    const userBlock = context.includes('CUSTOM INSTRUCTIONS (highest priority')
+        ? `YOUR CUSTOM INSTRUCTIONS — these control your tone, format, approach, and style. Follow them precisely:\n=====\n${context}\n=====\n\n`
+        : context
+            ? `USER INSTRUCTIONS (highest priority — follow these precisely):\n=====\n${context}\n=====\n\n`
+            : '';
 
     const sections = [userBlock, promptParts.intro, '\n\n', promptParts.formatRequirements];
 
@@ -633,18 +630,22 @@ End with a strong opinion or lesson from experience — never a summary of what 
 
 function buildDynamicPrompt(questionType, customPrompt = '') {
     const context = customPrompt?.trim() || '';
+    const typeInstructions = DYNAMIC_TYPE_PROMPTS[questionType] || DYNAMIC_TYPE_PROMPTS.technical;
 
-    // When the user has written their own Custom Instructions, those take full ownership
-    // of the interaction — injecting competing type rules causes the model to split
-    // attention and follow neither. Strip the built-in prompts entirely and let the
-    // user's instructions be the sole directive.
     const hasCustomInstructions = context.includes('CUSTOM INSTRUCTIONS (highest priority');
     if (hasCustomInstructions) {
-        return `You MUST follow these instructions EXACTLY. They override everything else.\n=====\n${context}\n=====`;
+        // Custom instructions own the style, format, and approach.
+        // The type-specific behavior still runs so the AI knows WHAT to produce
+        // (write code for coding, draw a diagram for system design, tell a story
+        // for behavioral) — only the HOW is overridden by the user.
+        return [
+            `YOUR CUSTOM INSTRUCTIONS — these control your tone, format, approach, and style. Follow them precisely:\n=====\n${context}\n=====`,
+            `\n\nQUESTION TYPE DETECTED: ${questionType.toUpperCase()}\nApply the following core behavior for this question type. Your custom instructions above define the style; this section defines what kind of answer to produce:\n`,
+            typeInstructions,
+        ].join('');
     }
 
     // Default built-in behavior when no custom instructions are set.
-    const typeInstructions = DYNAMIC_TYPE_PROMPTS[questionType] || DYNAMIC_TYPE_PROMPTS.technical;
     const userBlock = context
         ? `USER INSTRUCTIONS (highest priority — follow these precisely and let them shape every answer):\n=====\n${context}\n=====\n\n`
         : '';
