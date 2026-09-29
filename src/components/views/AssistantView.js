@@ -15,6 +15,20 @@ export class AssistantView extends LitElement {
 
         /* ── Response area ── */
 
+        .question-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #555;
+            padding: 6px var(--space-md) 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex-shrink: 0;
+            user-select: none;
+        }
+
         .response-container {
             flex: 1;
             overflow-y: auto;
@@ -22,7 +36,6 @@ export class AssistantView extends LitElement {
             line-height: 1.65;
             background: var(--bg-app);
             padding: var(--space-sm) var(--space-md);
-            scroll-behavior: smooth;
             user-select: text;
             cursor: text;
             color: #8BE9FD;
@@ -579,6 +592,7 @@ export class AssistantView extends LitElement {
 
     static properties = {
         responses: { type: Array },
+        questions: { type: Array },
         currentResponseIndex: { type: Number },
         selectedProfile: { type: String },
         onSendText: { type: Function },
@@ -592,6 +606,7 @@ export class AssistantView extends LitElement {
     constructor() {
         super();
         this.responses = [];
+        this.questions = [];
         this.currentResponseIndex = -1;
         this.selectedProfile = 'interview';
         this.onSendText = () => {};
@@ -1208,19 +1223,21 @@ export class AssistantView extends LitElement {
         const hasNext = this.currentResponseIndex < this.responses.length - 1;
         const showNav = this.responses.length > 0;
         const activePins = this._pinnedRefs.filter(r => this._activePins[r.id]);
+        const currentQuestion = (this.questions && this.questions[this.currentResponseIndex]) || '';
 
         return html`
+            ${currentQuestion ? html`<div class="question-label">${currentQuestion}</div>` : ''}
             <div class="response-container" id="responseContainer"></div>
 
             ${showNav ? html`
             <div class="response-nav">
-                <button class="nav-btn" ?disabled=${!hasPrev} @click=${this.navigateToPreviousResponse} title="Previous response">
+                <button class="nav-btn" ?disabled=${!hasPrev} @click=${this.navigateToPreviousResponse} title="Previous (↑↑)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="15 18 9 12 15 6"/>
                     </svg>
                 </button>
                 <span class="response-counter">${this.currentResponseIndex + 1} / ${this.responses.length}</span>
-                <button class="nav-btn" ?disabled=${!hasNext} @click=${this.navigateToNextResponse} title="Next response">
+                <button class="nav-btn" ?disabled=${!hasNext} @click=${this.navigateToNextResponse} title="Next (↓↓)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="9 18 15 12 9 6"/>
                     </svg>
@@ -1266,18 +1283,8 @@ export class AssistantView extends LitElement {
                         @keydown=${this.handleTextKeydown}
                     />
                 </div>
-                <button
-                    class="capture-btn ${this.capturedCount > 0 ? 'has-captures' : ''}"
-                    @click=${this.handleCaptureScreenshot}
-                    title="Capture screenshot (click multiple times to capture the full question, then click Solve)"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/>
-                        <circle cx="12" cy="13" r="3"/>
-                    </svg>
-                    Capture
-                    ${this.capturedCount > 0 ? html`<span class="capture-count">${this.capturedCount}</span>` : ''}
-                </button>
+                <!-- Capture button removed — use Cmd+Shift+C shortcut instead -->
+                <span style="display:none">${this.capturedCount}</span>
                 <button class="analyze-btn ${this.isAnalyzing ? 'analyzing' : ''}" @click=${this.handleScreenAnswer}>
                     <canvas class="analyze-canvas"></canvas>
                     <span class="analyze-btn-content">

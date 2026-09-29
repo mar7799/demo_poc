@@ -332,12 +332,21 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         }
     }
 
-    // Register scroll up shortcut
+    // Scroll up / navigate previous — hold scrolls, double-tap (150–450ms gap) navigates
+    let lastUpTime = 0;
     if (keybinds.scrollUp) {
         try {
             globalShortcut.register(keybinds.scrollUp, () => {
-                console.log('Scroll up shortcut triggered');
-                sendToRenderer('scroll-response-up');
+                const now = Date.now();
+                const gap = now - lastUpTime;
+                lastUpTime = now;
+                if (gap > 150 && gap < 450) {
+                    // Two deliberate taps → go to previous question
+                    sendToRenderer('navigate-previous-response');
+                } else {
+                    // First press or hold repeat → scroll
+                    sendToRenderer('scroll-response-up');
+                }
             });
             console.log(`Registered scrollUp: ${keybinds.scrollUp}`);
         } catch (error) {
@@ -345,12 +354,21 @@ function updateGlobalShortcuts(keybinds, mainWindow, sendToRenderer, geminiSessi
         }
     }
 
-    // Register scroll down shortcut
+    // Scroll down / navigate next — hold scrolls, double-tap (150–450ms gap) navigates
+    let lastDownTime = 0;
     if (keybinds.scrollDown) {
         try {
             globalShortcut.register(keybinds.scrollDown, () => {
-                console.log('Scroll down shortcut triggered');
-                sendToRenderer('scroll-response-down');
+                const now = Date.now();
+                const gap = now - lastDownTime;
+                lastDownTime = now;
+                if (gap > 150 && gap < 450) {
+                    // Two deliberate taps → go to next question
+                    sendToRenderer('navigate-next-response');
+                } else {
+                    // First press or hold repeat → scroll
+                    sendToRenderer('scroll-response-down');
+                }
             });
             console.log(`Registered scrollDown: ${keybinds.scrollDown}`);
         } catch (error) {

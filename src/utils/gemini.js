@@ -589,6 +589,7 @@ async function sendToGroq(transcription) {
 
     const questionToAnswer = intent;
     const assumptionPrefix = '';
+    sendToRenderer('set-question', questionToAnswer);
 
     // Classify every question regardless of profile or type — always build dynamic prompt
     let questionType = classifyQuestion(questionToAnswer, groqConversationHistory);
@@ -648,7 +649,7 @@ async function sendToGroq(transcription) {
                 ],
                 stream: true,
                 temperature: 0.7,
-                max_tokens: questionType === 'coding' ? 8000 : questionType === 'system_design' ? (hasCustomInstructionsGroq ? (inDeliveryStageGroq ? 3500 : 1200) : 4096) : 700,
+                max_tokens: (questionType === 'coding' || questionType === 'system_design') ? 8000 : 700,
                 // reasoning_effort only supported by Qwen thinking models
                 ...(modelToUse.includes('qwen') ? { reasoning_effort: 'none' } : {}),
             })
@@ -682,7 +683,7 @@ async function sendToGroq(transcription) {
                         messages: [{ role: 'system', content: activeSystemPrompt }, ...groqHistoryForRequest],
                         stream: true,
                         temperature: 0.7,
-                        max_tokens: questionType === 'coding' ? 8000 : questionType === 'system_design' ? (hasCustomInstructionsGroq ? (inDeliveryStageGroq ? 3500 : 1200) : 4096) : 700,
+                        max_tokens: (questionType === 'coding' || questionType === 'system_design') ? 8000 : 700,
                         ...(modelToUse.includes('qwen') ? { reasoning_effort: 'none' } : {}),
                     }),
                 });
@@ -753,7 +754,7 @@ async function sendToGroq(transcription) {
             // ── Self-healing audit ──────────────────────────────────────────
             const truncationReason = checkTruncation(cleanedResponse);
             const classificationWarning = validateClassification(questionType, cleanedResponse);
-            auditRecord({ provider: 'groq', questionType, maxTokens: questionType === 'coding' ? 8000 : questionType === 'system_design' ? (hasCustomInstructionsGroq ? (inDeliveryStageGroq ? 3500 : 1200) : 4096) : 700, historyChars: groqHistoryChars, responseChars: cleanedResponse.length, truncationReason, classificationWarning });
+            auditRecord({ provider: 'groq', questionType, maxTokens: (questionType === 'coding' || questionType === 'system_design') ? 8000 : 700, historyChars: groqHistoryChars, responseChars: cleanedResponse.length, truncationReason, classificationWarning });
 
             const finalGroqText = fixFormat(cleanedResponse);
             if (finalGroqText !== cleanedResponse) {
@@ -945,6 +946,7 @@ async function sendToAnthropic(transcription) {
     lastProcessedIntent = intent;
 
     const questionToAnswer = intent;
+    sendToRenderer('set-question', questionToAnswer);
 
     // Use dynamic classifier prompt for system_design and coding regardless of profile
     // Classify every question regardless of profile or type — always build dynamic prompt
@@ -989,7 +991,7 @@ async function sendToAnthropic(transcription) {
         resume: 800,
         situational: 600,
         ambiguous: 500,
-        system_design: hasCustomInstructions ? (inDeliveryStage ? 3500 : 1200) : 4096,
+        system_design: 8000,
         coding: 8000,
     };
     const maxTokens = maxTokensByType[questionType] || 600;
@@ -1585,11 +1587,7 @@ async function sendImageToAnthropicHttp(images, prompt) {
             },
             body: JSON.stringify({
                 model: 'claude-sonnet-4-6',
-                max_tokens: (() => {
-                    const hasCustom = (currentCustomPrompt || '').includes('CUSTOM INSTRUCTIONS (highest priority');
-                    const deep = groqConversationHistory.filter(m => m.role === 'assistant').length >= 2;
-                    return hasCustom ? (deep ? 3500 : 1500) : 4096;
-                })(),
+                max_tokens: 8000,
                 stream: true,
                 system: imageSystemPrompt,
                 messages: [{
@@ -1888,6 +1886,7 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return { success: false, error: 'Invalid image data' };
             }
 
+            sendToRenderer('set-question', '[Screenshot]');
             const buffer = Buffer.from(data, 'base64');
 
             if (buffer.length < 1000) {

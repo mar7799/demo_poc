@@ -352,6 +352,7 @@ export class MetaMaxProApp extends LitElement {
         selectedProfile: { type: String },
         selectedLanguage: { type: String },
         responses: { type: Array },
+        questions: { type: Array },
         currentResponseIndex: { type: Number },
         selectedScreenshotInterval: { type: String },
         selectedImageQuality: { type: String },
@@ -378,6 +379,7 @@ export class MetaMaxProApp extends LitElement {
         this.selectedImageQuality = 'medium';
         this.layoutMode = 'normal';
         this.responses = [];
+        this.questions = [];
         this.currentResponseIndex = -1;
         this._viewInstances = new Map();
         this._isClickThrough = false;
@@ -433,6 +435,7 @@ export class MetaMaxProApp extends LitElement {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.on('new-response', (_, response) => this.addNewResponse(response));
             ipcRenderer.on('update-response', (_, response) => this.updateCurrentResponse(response));
+            ipcRenderer.on('set-question', (_, text) => this.setCurrentQuestion(text));
             ipcRenderer.on('update-status', (_, status) => this.setStatus(status));
             ipcRenderer.on('click-through-toggled', (_, isEnabled) => { this._isClickThrough = isEnabled; });
             ipcRenderer.on('reconnect-failed', (_, data) => this.addNewResponse(data.message));
@@ -457,6 +460,7 @@ export class MetaMaxProApp extends LitElement {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.removeAllListeners('new-response');
             ipcRenderer.removeAllListeners('update-response');
+            ipcRenderer.removeAllListeners('set-question');
             ipcRenderer.removeAllListeners('update-status');
             ipcRenderer.removeAllListeners('click-through-toggled');
             ipcRenderer.removeAllListeners('reconnect-failed');
@@ -506,12 +510,20 @@ export class MetaMaxProApp extends LitElement {
     addNewResponse(response) {
         const wasOnLatest = this.currentResponseIndex === this.responses.length - 1;
         this.responses = [...this.responses, response];
+        this.questions = [...this.questions, ''];  // placeholder — filled by set-question
         if (wasOnLatest || this.currentResponseIndex === -1) {
             this.currentResponseIndex = this.responses.length - 1;
         }
         this._awaitingNewResponse = false;
         this.requestUpdate();
         this._syncRemoteState();
+    }
+
+    setCurrentQuestion(text) {
+        if (this.questions.length === 0) return;
+        const idx = this.questions.length - 1;
+        this.questions = [...this.questions.slice(0, idx), text];
+        this.requestUpdate();
     }
 
     // Helper message from remote control — marked with a prefix so AssistantView renders it distinctly
@@ -639,6 +651,7 @@ export class MetaMaxProApp extends LitElement {
 
         metaMaxPro.startCapture(this.selectedScreenshotInterval, this.selectedImageQuality);
         this.responses = [];
+        this.questions = [];
         this.currentResponseIndex = -1;
         this.startTime = Date.now();
         this.sessionActive = true;
@@ -796,6 +809,7 @@ export class MetaMaxProApp extends LitElement {
                 return html`
                     <assistant-view
                         .responses=${this.responses}
+                        .questions=${this.questions}
                         .currentResponseIndex=${this.currentResponseIndex}
                         .selectedProfile=${this.selectedProfile}
                         .onSendText=${msg => this.handleSendText(msg)}
