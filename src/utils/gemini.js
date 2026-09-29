@@ -590,13 +590,10 @@ async function sendToGroq(transcription) {
     const questionToAnswer = intent;
     const assumptionPrefix = '';
 
-    // Use dynamic classifier for system_design and coding regardless of profile
-    let activeSystemPrompt = currentSystemPrompt || 'You are a helpful assistant.';
+    // Classify every question regardless of profile or type — always build dynamic prompt
     let questionType = classifyQuestion(questionToAnswer, groqConversationHistory);
-    if (currentProfile === 'interview' || ['system_design', 'coding'].includes(questionType)) {
-        activeSystemPrompt = buildDynamicPrompt(questionType, currentCustomPrompt || '');
-        console.log(`[Classifier] Type: ${questionType} | Prompt: ${activeSystemPrompt.length} chars`);
-    }
+    let activeSystemPrompt = buildDynamicPrompt(questionType, currentCustomPrompt || '');
+    console.log(`[Classifier] Type: ${questionType} | Prompt: ${activeSystemPrompt.length} chars`);
 
     const skippedModels = [];
     let modelToUse = getModelForToday(skippedModels);
@@ -950,12 +947,10 @@ async function sendToAnthropic(transcription) {
     const questionToAnswer = intent;
 
     // Use dynamic classifier prompt for system_design and coding regardless of profile
-    let activeSystemPrompt = currentSystemPrompt || 'You are a helpful assistant.';
+    // Classify every question regardless of profile or type — always build dynamic prompt
     let questionType = classifyQuestion(questionToAnswer, groqConversationHistory);
-    if (currentProfile === 'interview' || ['system_design', 'coding'].includes(questionType)) {
-        activeSystemPrompt = buildDynamicPrompt(questionType, currentCustomPrompt || '');
-        console.log(`[Anthropic Classifier] Type: ${questionType} | Prompt: ${activeSystemPrompt.length} chars`);
-    }
+    let activeSystemPrompt = buildDynamicPrompt(questionType, currentCustomPrompt || '');
+    console.log(`[Anthropic Classifier] Type: ${questionType} | Prompt: ${activeSystemPrompt.length} chars`);
 
     groqConversationHistory.push({ role: 'user', content: questionToAnswer.trim() });
     if (groqConversationHistory.length > 20) {
@@ -1503,9 +1498,7 @@ async function sendAudioToGemini(base64Data, geminiSessionRef) {
 }
 
 async function sendImageToGeminiHttp(base64Data, prompt) {
-    // Get available model based on rate limits
     const model = getAvailableModel();
-
     const apiKey = getApiKey();
     if (!apiKey) {
         return { success: false, error: 'No API key configured' };
@@ -1514,19 +1507,20 @@ async function sendImageToGeminiHttp(base64Data, prompt) {
     try {
         const ai = new GoogleGenAI({ apiKey: apiKey });
 
+        // Classify so custom instructions + type behavior apply to images too
+        const imageQuestionType = classifyQuestion(prompt, groqConversationHistory);
+        const imageSystemPrompt = buildDynamicPrompt(imageQuestionType, currentCustomPrompt || '');
+        console.log(`[Gemini Image Classifier] Type: ${imageQuestionType}`);
+
         const contents = [
-            {
-                inlineData: {
-                    mimeType: 'image/jpeg',
-                    data: base64Data,
-                },
-            },
+            { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
             { text: prompt },
         ];
 
         console.log(`Sending image to ${model} (streaming)...`);
         const response = await ai.models.generateContentStream({
             model: model,
+            config: { systemInstruction: imageSystemPrompt },
             contents: contents,
         });
 
@@ -1563,6 +1557,11 @@ async function sendImageToAnthropicHttp(images, prompt) {
     }
 
     try {
+        // Classify the screen prompt so custom instructions + type behavior apply to images too
+        const imageQuestionType = classifyQuestion(prompt, groqConversationHistory);
+        const imageSystemPrompt = buildDynamicPrompt(imageQuestionType, currentCustomPrompt || '');
+        console.log(`[Image Classifier] Type: ${imageQuestionType} | Prompt: ${imageSystemPrompt.length} chars`);
+
         const imageContent = images.map(data => ({
             type: 'image',
             source: { type: 'base64', media_type: 'image/jpeg', data },
@@ -1579,6 +1578,7 @@ async function sendImageToAnthropicHttp(images, prompt) {
                 model: 'claude-sonnet-4-6',
                 max_tokens: 4096,
                 stream: true,
+                system: imageSystemPrompt,
                 messages: [{
                     role: 'user',
                     content: [...imageContent, { type: 'text', text: prompt }],
@@ -1647,6 +1647,10 @@ async function sendMultipleImagesToGeminiHttp(images, prompt) {
     try {
         const ai = new GoogleGenAI({ apiKey: apiKey });
 
+        const imageQuestionType = classifyQuestion(prompt, groqConversationHistory);
+        const imageSystemPrompt = buildDynamicPrompt(imageQuestionType, currentCustomPrompt || '');
+        console.log(`[Gemini Multi-Image Classifier] Type: ${imageQuestionType}`);
+
         const contents = [
             ...images.map(data => ({
                 inlineData: { mimeType: 'image/jpeg', data },
@@ -1657,6 +1661,7 @@ async function sendMultipleImagesToGeminiHttp(images, prompt) {
         console.log(`Sending ${images.length} images to ${model} (streaming)...`);
         const response = await ai.models.generateContentStream({
             model: model,
+            config: { systemInstruction: imageSystemPrompt },
             contents: contents,
         });
 
