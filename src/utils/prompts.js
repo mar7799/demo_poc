@@ -454,8 +454,15 @@ Provide direct exam answers in **markdown format**. Include the question text, t
 };
 
 function buildSystemPrompt(promptParts, customPrompt = '', googleSearchEnabled = true) {
-    const userBlock = customPrompt?.trim()
-        ? `USER INSTRUCTIONS (highest priority — follow these precisely):\n=====\n${customPrompt.trim()}\n=====\n\n`
+    const context = customPrompt?.trim() || '';
+
+    // Same rule as buildDynamicPrompt: custom instructions own the session entirely.
+    if (context.includes('CUSTOM INSTRUCTIONS (highest priority')) {
+        return `You MUST follow these instructions EXACTLY. They override everything else.\n=====\n${context}\n=====`;
+    }
+
+    const userBlock = context
+        ? `USER INSTRUCTIONS (highest priority — follow these precisely):\n=====\n${context}\n=====\n\n`
         : '';
 
     const sections = [userBlock, promptParts.intro, '\n\n', promptParts.formatRequirements];
@@ -625,12 +632,21 @@ For system design PHASE 1 (clarifying questions): conversational prose only.
 End with a strong opinion or lesson from experience — never a summary of what you just said.`;
 
 function buildDynamicPrompt(questionType, customPrompt = '') {
-    const typeInstructions = DYNAMIC_TYPE_PROMPTS[questionType] || DYNAMIC_TYPE_PROMPTS.technical;
+    const context = customPrompt?.trim() || '';
 
-    // User instructions lead — placed before type-specific rules so they steer tone,
-    // persona, and focus. The type rules handle structure and format after.
-    const userBlock = customPrompt?.trim()
-        ? `USER INSTRUCTIONS (highest priority — follow these precisely and let them shape every answer):\n=====\n${customPrompt.trim()}\n=====\n\n`
+    // When the user has written their own Custom Instructions, those take full ownership
+    // of the interaction — injecting competing type rules causes the model to split
+    // attention and follow neither. Strip the built-in prompts entirely and let the
+    // user's instructions be the sole directive.
+    const hasCustomInstructions = context.includes('CUSTOM INSTRUCTIONS (highest priority');
+    if (hasCustomInstructions) {
+        return `You MUST follow these instructions EXACTLY. They override everything else.\n=====\n${context}\n=====`;
+    }
+
+    // Default built-in behavior when no custom instructions are set.
+    const typeInstructions = DYNAMIC_TYPE_PROMPTS[questionType] || DYNAMIC_TYPE_PROMPTS.technical;
+    const userBlock = context
+        ? `USER INSTRUCTIONS (highest priority — follow these precisely and let them shape every answer):\n=====\n${context}\n=====\n\n`
         : '';
 
     return [userBlock, DYNAMIC_BASE, '\n\n', typeInstructions, '\n\n', DYNAMIC_FORMAT].join('');
