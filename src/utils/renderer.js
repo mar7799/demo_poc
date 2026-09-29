@@ -159,6 +159,14 @@ function buildContext(prefs) {
     return parts.join('\n\n');
 }
 
+async function updateCustomContext(instructions, resume, jd) {
+    const parts = [];
+    if (instructions?.trim()) parts.push(`CUSTOM INSTRUCTIONS (highest priority — follow these precisely):\n${instructions.trim()}`);
+    if (resume?.trim()) parts.push(`RESUME / BACKGROUND:\n${resume.trim()}`);
+    if (jd?.trim()) parts.push(`TARGET JOB DESCRIPTION:\n${jd.trim()}`);
+    await ipcRenderer.invoke('update-custom-context', parts.join('\n\n'));
+}
+
 async function initializeGemini(profile = 'interview', language = 'en-US') {
     const apiKey = await storage.getApiKey();
     if (apiKey) {
@@ -1208,6 +1216,9 @@ const metaMaxPro = {
 
     // Refresh preferences cache (call after updating preferences)
     refreshPreferencesCache: loadPreferencesCache,
+
+    // Live-update in-memory custom context without session restart
+    updateCustomContext,
 
     // Platform detection
     isLinux: isLinux,

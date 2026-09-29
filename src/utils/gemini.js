@@ -1789,6 +1789,12 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
         return true;
     });
 
+    ipcMain.handle('update-custom-context', async (_event, newContext) => {
+        currentCustomPrompt = newContext || '';
+        console.log('[CustomPrompt] In-memory context updated — applies from next question');
+        return true;
+    });
+
     ipcMain.handle('send-audio-content', async (_event, { data, mimeType }) => {
         if (currentProviderMode === 'cloud') {
             try {

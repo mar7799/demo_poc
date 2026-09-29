@@ -225,6 +225,8 @@ export class AICustomizeView extends LitElement {
 
     async _save(key, val) {
         await metaMaxPro.storage.updatePreference(key, val);
+        // Push live update so changes apply to the current session immediately
+        await metaMaxPro.updateCustomContext(this._instructions, this._context, this._jobDescription).catch(() => {});
         this._flashSaved();
     }
 
