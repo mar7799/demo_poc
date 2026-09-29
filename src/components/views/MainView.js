@@ -879,7 +879,7 @@ export class MainView extends LitElement {
             <div class="cloud-promo" @click=${() => this._saveMode('cloud')}>
                 <div class="cloud-promo-glow"></div>
                 <div class="cloud-promo-header">
-                    <span class="cloud-promo-title">Switch to Meta Max Pro Cloud</span>
+                    <span class="cloud-promo-title">Switch to ShadowAI Cloud</span>
                     <span class="cloud-promo-arrow">&rarr;</span>
                 </div>
                 <div class="cloud-promo-desc">No API keys, no setup, no billing headaches. It just works.</div>
@@ -929,7 +929,7 @@ export class MainView extends LitElement {
             <div class="cloud-promo" @click=${() => this._saveMode('cloud')}>
                 <div class="cloud-promo-glow"></div>
                 <div class="cloud-promo-header">
-                    <span class="cloud-promo-title">Switch to Meta Max Pro Cloud</span>
+                    <span class="cloud-promo-title">Switch to ShadowAI Cloud</span>
                     <span class="cloud-promo-arrow">&rarr;</span>
                 </div>
                 <div class="cloud-promo-desc">No API keys, no setup, no billing headaches. It just works.</div>
@@ -950,9 +950,9 @@ export class MainView extends LitElement {
         return html`
             <div class="form-wrapper">
                 <div class="page-title">
-                    ${this._mode === 'cloud' ? 'Meta Max Pro Cloud' :
-                      this._mode === 'anthropic' ? html`Meta Max Pro <span class="mode-suffix">Claude</span>` :
-                      'Meta Max Pro'}
+                    ${this._mode === 'cloud' ? 'ShadowAI Cloud' :
+                      this._mode === 'anthropic' ? html`ShadowAI <span class="mode-suffix">Claude</span>` :
+                      'ShadowAI'}
                 </div>
                 <div class="page-subtitle">
                     ${this._mode === 'cloud' ? 'Enter your invite code to get started' :

@@ -160,7 +160,7 @@ function buildPage() {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Remote — Meta Max Pro</title>
+<title>Remote — ShadowAI</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0e0e0e;--surface:#1a1a1a;--border:#2a2a2a;--text:#e0e0e0;--muted:#666;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--white:#fff}
@@ -200,7 +200,7 @@ textarea:focus{border-color:var(--blue)}
 <div class="bar">
   <div style="display:flex;align-items:center">
     <div class="dot"></div>
-    <span class="title">Meta Max Pro Remote</span>
+    <span class="title">ShadowAI Remote</span>
     <span class="live">&#x25cf; live</span>
   </div>
   <span class="badge" id="badge">${esc(counter)}</span>

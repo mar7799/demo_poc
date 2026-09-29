@@ -245,7 +245,7 @@ export class AssistantView extends LitElement {
         }
 
         .nav-btn:hover:not(:disabled) {
-            color: var(--text-primary);
+            color: #FFE66D;
         }
 
         .nav-btn:disabled {
@@ -311,7 +311,7 @@ export class AssistantView extends LitElement {
 
         .pin-chip:hover {
             border-color: var(--accent);
-            color: var(--text-primary);
+            color: #FFE66D;
         }
 
         .pin-chip.active {
@@ -356,10 +356,20 @@ export class AssistantView extends LitElement {
             border-bottom: 1px solid var(--border);
             font-size: 13px;
             line-height: var(--line-height);
-            color: var(--text-primary);
+            color: #8BE9FD;
             user-select: text;
             cursor: text;
         }
+
+        .pinned-panel p:nth-of-type(4n+1) { color: #FF6E6E; }
+        .pinned-panel p:nth-of-type(4n+2) { color: #50FA7B; }
+        .pinned-panel p:nth-of-type(4n+3) { color: #FFE66D; }
+        .pinned-panel p:nth-of-type(4n+0) { color: #8BE9FD; }
+        .pinned-panel li:nth-child(4n+1) { color: #FF6E6E; }
+        .pinned-panel li:nth-child(4n+2) { color: #50FA7B; }
+        .pinned-panel li:nth-child(4n+3) { color: #FFE66D; }
+        .pinned-panel li:nth-child(4n+0) { color: #8BE9FD; }
+        .pinned-panel strong, .pinned-panel b { color: #FFE66D; font-weight: 700; }
 
         .pinned-panel:last-child {
             border-bottom: none;
@@ -396,6 +406,7 @@ export class AssistantView extends LitElement {
             background: none;
             padding: 0;
             font-size: inherit;
+            color: #50FA7B;
         }
 
         .pinned-panel code {
@@ -404,6 +415,7 @@ export class AssistantView extends LitElement {
             border-radius: var(--radius-sm);
             font-family: var(--font-mono);
             font-size: 0.85em;
+            color: #8BE9FD;
         }
 
         .pinned-panel .mermaid {
@@ -457,7 +469,7 @@ export class AssistantView extends LitElement {
         .input-bar-inner input {
             flex: 1;
             background: none;
-            color: var(--text-primary);
+            color: #8BE9FD;
             border: none;
             padding: 0;
             font-size: var(--font-size-sm);
@@ -474,7 +486,7 @@ export class AssistantView extends LitElement {
             position: relative;
             background: var(--bg-elevated);
             border: 1px solid var(--border);
-            color: var(--text-primary);
+            color: #8BE9FD;
             cursor: pointer;
             font-size: var(--font-size-xs);
             font-family: var(--font-mono);
@@ -517,7 +529,7 @@ export class AssistantView extends LitElement {
             position: relative;
             background: var(--bg-elevated);
             border: 1px solid var(--border);
-            color: var(--text-primary);
+            color: #8BE9FD;
             cursor: pointer;
             font-size: var(--font-size-xs);
             font-family: var(--font-mono);

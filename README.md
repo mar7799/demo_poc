@@ -1,9 +1,8 @@
 # ShadowAI
 
-> [!NOTE]
-> Requires macOS 13+ or Windows 10/11. Older OS versions have limited support.
+> Your always-ready personal AI assistant — voice-activated, hands-free, and built for high-stakes professional moments.
 
-A real-time AI interview assistant that runs as a stealth overlay — invisible in the Dock, Taskbar, Cmd+Tab, and Mission Control. It listens to the interview audio, classifies each question, and streams a tailored response in plain paragraphs with bold keywords.
+ShadowAI runs as a lightweight floating overlay that listens, understands, and gives you clear, structured answers in real time. Whether you're preparing for an important meeting, thinking through a technical problem, or rehearsing for a presentation, ShadowAI stays out of your way until you need it.
 
 ---
 
@@ -20,63 +19,60 @@ Get the latest release from the [Releases page](https://github.com/mar7799/demo_
 
 ---
 
-## Installation — Security Warnings
+## Installation
 
-The app is not code-signed. Both macOS and Windows will show a warning on first launch.
-
-### macOS — "damaged and can't be opened"
-
-**Option A — Right-click to open:**
-1. Drag `ShadowAI.app` to **Applications**
-2. Right-click → **Open** → click **Open** in the dialog
-
-**Option B — Remove quarantine flag:**
-```bash
-xattr -d com.apple.quarantine "/Applications/ShadowAI.app"
-```
-
-### Windows — "Windows protected your PC"
-
-1. Click **More info** → **Run anyway**
-
-For the ZIP: extract, right-click `ShadowAI.exe` → **Properties** → check **Unblock** → **Apply** → **OK**.
-
----
-
-## macOS Install — Do This In Order
+### macOS
 
 > [!IMPORTANT]
-> Follow these steps exactly. Running `xattr` before the app is in Applications will fail with "no such file".
+> Follow these steps in order. Running `xattr` before the app is in Applications will fail.
 
-**Step 1 — Install the app:**
+**Step 1 — Install:**
 1. Open `ShadowAI.dmg`
 2. Drag `ShadowAI.app` into the **Applications** folder
 3. Eject the DMG
 
-**Step 2 — Clear the quarantine flag** (or audio capture will silently fail):
+**Step 2 — Allow the app** (macOS Gatekeeper blocks unsigned apps by default):
 
-Option A — Terminal (macOS Monterey 12+ / newer):
+Option A — Right-click to open (no terminal needed):
+1. Right-click `ShadowAI.app` → **Open** → click **Open** in the dialog
+
+Option B — Terminal (macOS Monterey 12+):
 ```bash
 xattr -cr "/Applications/ShadowAI.app"
 ```
 
-Option B — Terminal (all macOS versions, use if Option A says "option -r not recognized"):
+Option C — Terminal (all macOS versions, use if Option B says "option -r not recognized"):
 ```bash
 xattr -d com.apple.quarantine "/Applications/ShadowAI.app"
 xattr -d com.apple.quarantine "/Applications/ShadowAI.app/Contents/Resources/SystemAudioDump"
 ```
 
-Option C — No terminal (any version):
+Option D — System Settings (no terminal):
 1. Open **System Settings → Privacy & Security**
-2. Scroll down to the blocked app notice
-3. Click **Open Anyway**
+2. Scroll down to the blocked app notice → click **Open Anyway**
 
 **Step 3 — Launch:**
-Double-click `ShadowAI.app` in Applications, or run `npm start` from source.
+Double-click `ShadowAI.app` in Applications.
 
-The window appears at the top of your screen. The app is invisible in Dock and Cmd+Tab — that is by design.
+The assistant window appears at the top of your screen. It runs as a minimal floating overlay — no Dock icon, no Cmd+Tab entry — so it stays out of your workspace and focuses entirely on assisting you.
 
-> **Development (from source):**
+### Windows
+
+1. Extract the ZIP
+2. If Windows shows "Windows protected your PC" → click **More info** → **Run anyway**
+3. To unblock permanently: right-click `ShadowAI.exe` → **Properties** → check **Unblock** → **Apply**
+
+---
+
+## Run from Source
+
+```bash
+cd "/path/to/ShadowAI"
+npm install
+npm start
+```
+
+> **First time from source (macOS):**
 > ```bash
 > xattr -d com.apple.quarantine "/path/to/ShadowAI/src/assets/SystemAudioDump"
 > chmod +x "/path/to/ShadowAI/src/assets/SystemAudioDump"
@@ -84,62 +80,62 @@ The window appears at the top of your screen. The app is invisible in Dock and C
 
 ---
 
-## Run ShadowAI
-
-**Every time you want to start the app:**
-
-```bash
-cd "/path/to/ShadowAI"
-npm start
-```
-
-The window will appear at the top of your screen. It is invisible in the Dock and Cmd+Tab — use the keyboard shortcuts to interact with it.
-
----
-
 ## Setup
 
 ### 1. Get API Keys
 
-You need at least one of these:
+ShadowAI works with leading AI providers. You need at least one:
 
-| Provider | Where to get it | Used for |
+| Provider | Where to get it | Role |
 |---|---|---|
-| **Anthropic (Claude)** | [console.anthropic.com](https://console.anthropic.com) | Primary AI responses |
-| **Groq** | [console.groq.com](https://console.groq.com) | Fallback (free tier available) |
-| **Google Gemini** | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Audio transcription (BYOK mode) |
+| **Anthropic (Claude)** | [console.anthropic.com](https://console.anthropic.com) | Primary — best quality |
+| **Groq** | [console.groq.com](https://console.groq.com) | Fallback — free tier available |
+| **Google Gemini** | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Live audio transcription (BYOK mode) |
 
-Claude (Anthropic) is the recommended primary model. Groq is the free fallback. Gemini is only needed for live audio transcription in BYOK mode.
+Keys are stored locally on your device and are only sent to their respective API provider.
 
-### 2. Install Dependencies (dev only)
+### 2. Configure
 
-```bash
-npm install
-```
-
-### 3. Run
-
-```bash
-npm start
-```
-
-### 4. Configure
-
-On first launch, enter your API keys in the settings screen. The app saves them locally — they are never sent anywhere except the respective API provider.
+On first launch, enter your API keys in the **Settings** tab. The app initializes instantly and is ready as soon as you see the status indicator turn green.
 
 ---
 
-## How It Works
+## What ShadowAI Does
 
-1. The app captures system audio (what the interviewer says)
-2. Speech is transcribed in real time
-3. A classifier detects the question type (behavioral, coding, system design, technical, etc.)
-4. The matching prompt and token budget are selected automatically
-5. The answer streams to the overlay as dense paragraphs with bold keywords
-6. For coding questions, the full program is generated (up to 8000 tokens)
-7. For system design, a Mermaid UML diagram is rendered inline
+ShadowAI is a personal AI thinking partner. It runs hands-free in the background and responds the moment it hears something worth answering.
 
-The overlay is always on top, transparent, frame-less, and completely invisible to screen-sharing software (`setContentProtection` is enabled).
+1. **Listens** — captures audio from your system (meetings, calls, videos, your own voice)
+2. **Understands** — classifies what kind of question or situation it heard
+3. **Responds** — streams a structured, relevant answer with key terms highlighted
+4. **Adapts** — adjusts depth, format, and tone based on the context (technical, behavioral, conversational)
+5. **Learns your style** — paste your background and custom instructions once; every answer reflects your experience from then on
+
+---
+
+## Custom Instructions
+
+Open **AI Context → Custom Prompt** to write your own instructions. Examples:
+
+- *"Keep every answer under 3 sentences. Be direct."*
+- *"I have 10 years of backend engineering experience. Emphasize system design."*
+- *"Always answer in first person using STAR format."*
+
+When set, these override the built-in behavior. Leave it blank to use the default prompts.
+
+The **Context** tab holds your resume/background and a target job description — ShadowAI weaves them into every answer automatically.
+
+---
+
+## Profiles
+
+| Profile | Best for |
+|---|---|
+| **Interview** | Technical and behavioral questions, system design, coding |
+| **Exam** | Dense factual answers with full acronym expansion |
+| **Sales Call** | Product positioning, objection handling, rapport |
+| **Business Meeting** | Summaries, action items, decision support |
+| **Presentation** | Clear explanations, narrative structure |
+| **Negotiation** | Framing, anchoring, counter-offer language |
 
 ---
 
@@ -153,26 +149,26 @@ All shortcuts are customizable in the **Customize** tab.
 |---|---|
 | Previous response | `Cmd+[` / `Ctrl+[` |
 | Next response | `Cmd+]` / `Ctrl+]` |
-| Scroll response up | `Cmd+Shift+Up` |
-| Scroll response down | `Cmd+Shift+Down` |
+| Scroll up | `Cmd+Shift+↑` |
+| Scroll down | `Cmd+Shift+↓` |
 
 ### Window
 
 | Action | Default |
 |---|---|
-| Move window | `Cmd/Ctrl + Arrow Keys` |
-| Toggle visibility (hide/show) | `Cmd+\` / `Ctrl+\` |
+| Move window | `Cmd/Ctrl + Arrow keys` |
+| Hide / show | `Cmd+\` / `Ctrl+\` |
 | Toggle click-through | `Cmd+M` / `Ctrl+M` |
-| Resize taller / shorter | `Alt+Shift+Up/Down` |
-| Resize wider / narrower | `Alt+Shift+Left/Right` |
+| Resize taller / shorter | `Alt+Shift+↑/↓` |
+| Resize wider / narrower | `Alt+Shift+←/→` |
 
 ### Capture & Analysis
 
 | Action | Default |
 |---|---|
-| Analyze screen now | `Cmd+Enter` / `Ctrl+Enter` |
+| Analyze current screen | `Cmd+Enter` / `Ctrl+Enter` |
 | Add screenshot to buffer | `Cmd+Shift+C` / `Ctrl+Shift+C` |
-| Emergency erase | `Cmd+Shift+E` / `Ctrl+Shift+E` |
+| Clear screen | `Cmd+Shift+E` / `Ctrl+Shift+E` |
 
 ---
 
@@ -180,47 +176,38 @@ All shortcuts are customizable in the **Customize** tab.
 
 | Platform | Method |
 |---|---|
-| macOS | [SystemAudioDump](https://github.com/Mohammed-Yasin-Mulla/Sound) — captures system audio without a virtual driver |
+| macOS | [SystemAudioDump](https://github.com/Mohammed-Yasin-Mulla/Sound) — system audio without a virtual driver |
 | Windows | Loopback audio via `getDisplayMedia` |
 | Linux | Microphone input only |
 
 ---
 
-## Stealth — What Is Hidden
+## Minimal Footprint
 
-| Surface | Status |
-|---|---|
-| macOS Dock | Hidden (`app.dock.hide()`) |
-| macOS Cmd+Tab switcher | Hidden (`accessory` activation policy) |
-| macOS Mission Control | Hidden (`setHiddenInMissionControl`) |
-| macOS menu bar | No app menus registered |
-| Windows Taskbar | Hidden (`setSkipTaskbar`) |
-| Screen sharing / recording | Protected (`setContentProtection`) |
+ShadowAI is designed to be present without being intrusive:
 
----
-
-## Profiles
-
-- **Interview** — behavioral, coding, system design, technical, resume deep-dives
-- **Exam** — dense factual answers with acronym expansion
-- **Sales Call**, **Business Meeting**, **Presentation**, **Negotiation** — tone-matched responses
+- No Dock icon — launches and runs quietly in the background
+- No Cmd+Tab / Alt+Tab entry — doesn't clutter your app switcher
+- No menu bar entries — nothing added to the macOS menu bar
+- Floating overlay — always accessible, never in the way
+- Screen-content privacy — the overlay is excluded from screen recordings (`setContentProtection`)
 
 ---
 
-## Self-Healing
+## Self-Healing Responses
 
-The app monitors its own responses:
+ShadowAI monitors its own output quality:
 
-- If a response is truncated (unclosed code fence, mid-sentence cut), it automatically retries with a fresh context window
-- If format rules are violated (headers, bullets), the response is corrected before display
-- Mermaid diagrams are stripped from history before coding questions to free token budget
-- Every request is logged with `[Audit]` prefix in the terminal for debugging
+- Truncated responses (unclosed code fences, mid-sentence cuts) are automatically retried
+- Format violations are corrected before display
+- Mermaid diagrams are stripped from history before coding questions to preserve token budget
+- Every request is logged with `[Audit]` in the terminal for debugging
 
 ---
 
 ## Requirements
 
 - macOS 13+ or Windows 10/11
-- Screen recording permission
+- Screen recording permission (for screen analysis)
 - Audio capture permission
-- At least one API key (Anthropic recommended)
+- At least one API key (Anthropic Claude recommended)
