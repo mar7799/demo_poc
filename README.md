@@ -190,7 +190,6 @@ ShadowAI is designed to be present without being intrusive:
 - No Cmd+Tab / Alt+Tab entry — doesn't clutter your app switcher
 - No menu bar entries — nothing added to the macOS menu bar
 - Floating overlay — always accessible, never in the way
-- Screen-content privacy — the overlay is excluded from screen recordings (`setContentProtection`)
 
 ---
 

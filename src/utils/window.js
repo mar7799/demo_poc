@@ -39,7 +39,6 @@ function createWindow(sendToRenderer, geminiSessionRef) {
     );
 
     mainWindow.setResizable(false);
-    mainWindow.setContentProtection(true);
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     // Bump to screen-saver level so the overlay floats above full-screen apps
     // (the default 'floating' level from alwaysOnTop: true does not).
