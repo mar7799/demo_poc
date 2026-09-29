@@ -628,24 +628,51 @@ For system design PHASE 1 (clarifying questions): conversational prose only.
 
 End with a strong opinion or lesson from experience — never a summary of what you just said.`;
 
+// Stripped-down core essentials per type — WHAT to produce, no format/style rules.
+// Used only as a gap-filler when the user has custom instructions that don't cover
+// a specific aspect of the question type.
+const TYPE_CORE_ESSENTIALS = {
+    coding: `This is a coding question. Ensure the answer includes: complete working code (never truncate or use placeholders), the algorithm name and time/space complexity, all edge cases handled, and a brief trace of one example. If this is the very first turn, ask clarifying questions about constraints and edge cases before writing code.`,
+
+    system_design: `This is a system design question. Ensure the answer covers: clarifying questions on scale and requirements if this is the first turn, key components and their responsibilities, data flow between components, and at least one trade-off discussion. Mermaid diagrams are supported — use them when architecture needs to be visualised.`,
+
+    behavioral: `This is a behavioral question. Ensure the answer draws from real experience: a specific situation, the concrete action taken, and the measurable result. Ground it in a real company, project, or number wherever possible.`,
+
+    technical: `This is a technical knowledge question. Ensure the answer: directly addresses the concept asked, includes a real-world example or production experience, and covers the key trade-off.`,
+
+    resume: `This is a resume/experience question. Ensure the answer: references the candidate's specific background (company, project, stack, numbers), leads with the most impressive aspect, and uses "I" not "we".`,
+
+    self_reflection: `This is a self-reflection/failure question. Ensure the answer: names a real specific failure (not a humble-brag), describes what went wrong and why, and explains the concrete behaviour change that followed.`,
+
+    culture: `This is a culture/motivation question. Ensure the answer: connects to something specific in this role or company, avoids generic answers, and for "why leaving" stays forward-facing only.`,
+
+    situational: `This is a situational/hypothetical question. Ensure the answer: grounds the response in a real analogous experience before projecting forward, and commits to a clear course of action.`,
+
+    ambiguous: `This is an ambiguous question. Ensure the answer: identifies what is actually being tested, addresses both the surface question and the underlying intent, and asks one scoping question if genuinely unclear.`,
+};
+
 function buildDynamicPrompt(questionType, customPrompt = '') {
     const context = customPrompt?.trim() || '';
     const typeInstructions = DYNAMIC_TYPE_PROMPTS[questionType] || DYNAMIC_TYPE_PROMPTS.technical;
 
     const hasCustomInstructions = context.includes('CUSTOM INSTRUCTIONS (highest priority');
     if (hasCustomInstructions) {
-        // Custom instructions own the style, format, and approach.
-        // The type-specific behavior still runs so the AI knows WHAT to produce
-        // (write code for coding, draw a diagram for system design, tell a story
-        // for behavioral) — only the HOW is overridden by the user.
+        // The user's custom instructions ARE their approach — follow them 99%.
+        // The classifier has already identified the question type; we surface that
+        // so the AI knows the context, then use the core essentials only as a
+        // gap-filler for anything the user's instructions don't explicitly cover.
+        // No format rules, no "ABSOLUTE FORMAT LAW" — the user owns the format.
+        const coreEssential = TYPE_CORE_ESSENTIALS[questionType] || TYPE_CORE_ESSENTIALS.technical;
         return [
-            `YOUR CUSTOM INSTRUCTIONS — these control your tone, format, approach, and style. Follow them precisely:\n=====\n${context}\n=====`,
-            `\n\nQUESTION TYPE DETECTED: ${questionType.toUpperCase()}\nApply the following core behavior for this question type. Your custom instructions above define the style; this section defines what kind of answer to produce:\n`,
-            typeInstructions,
+            `QUESTION TYPE DETECTED: ${questionType.toUpperCase()}\n`,
+            `The user's instructions below define how to answer this question. Follow them as closely as possible — they are the primary guide (99%).\n`,
+            `Only where the instructions leave a gap, use the core essentials at the bottom to ensure the answer is complete and correct.\n\n`,
+            `USER'S APPROACH — primary guide, follow this:\n=====\n${context}\n=====\n\n`,
+            `CORE ESSENTIALS FOR ${questionType.toUpperCase()} — gap-fill only, do not override the user's approach:\n${coreEssential}`,
         ].join('');
     }
 
-    // Default built-in behavior when no custom instructions are set.
+    // No custom instructions — use full built-in behavior.
     const userBlock = context
         ? `USER INSTRUCTIONS (highest priority — follow these precisely and let them shape every answer):\n=====\n${context}\n=====\n\n`
         : '';

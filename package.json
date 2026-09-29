@@ -1,7 +1,7 @@
 {
     "name": "shadowai",
     "productName": "ShadowAI",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "ShadowAI — stealth AI interview assistant",
     "main": "src/index.js",
     "scripts": {
