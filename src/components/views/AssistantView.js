@@ -25,7 +25,7 @@ export class AssistantView extends LitElement {
             scroll-behavior: smooth;
             user-select: text;
             cursor: text;
-            color: #F8F8F2;
+            color: #8BE9FD;
             font-weight: 500;
         }
 
@@ -118,7 +118,7 @@ export class AssistantView extends LitElement {
         .response-container pre code {
             background: none;
             padding: 0;
-            color: #F8F8F2;
+            color: #50FA7B;
         }
 
         .response-container a {
@@ -215,8 +215,8 @@ export class AssistantView extends LitElement {
         .response-container .mermaid svg text,
         .response-container .mermaid svg .label,
         .response-container .mermaid svg .nodeLabel {
-            fill: #F5F5F5 !important;
-            color: #F5F5F5 !important;
+            fill: #8BE9FD !important;
+            color: #8BE9FD !important;
         }
 
         /* ── Response navigation strip ── */
@@ -424,8 +424,8 @@ export class AssistantView extends LitElement {
         .pinned-panel .mermaid svg text,
         .pinned-panel .mermaid svg .label,
         .pinned-panel .mermaid svg .nodeLabel {
-            fill: #F5F5F5 !important;
-            color: #F5F5F5 !important;
+            fill: #8BE9FD !important;
+            color: #8BE9FD !important;
         }
 
         /* ── Bottom input bar ── */
