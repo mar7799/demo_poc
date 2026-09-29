@@ -149,9 +149,11 @@ function arrayBufferToBase64(buffer) {
 }
 
 function buildContext(prefs) {
+    const instructions = (prefs.customInstructions || '').trim();
     const resume = (prefs.customPrompt || '').trim();
     const jd = (prefs.jobDescription || '').trim();
     const parts = [];
+    if (instructions) parts.push(`CUSTOM INSTRUCTIONS (highest priority — follow these precisely):\n${instructions}`);
     if (resume) parts.push(`RESUME / BACKGROUND:\n${resume}`);
     if (jd) parts.push(`TARGET JOB DESCRIPTION:\n${jd}`);
     return parts.join('\n\n');
