@@ -172,6 +172,148 @@ export class CustomizeView extends LitElement {
                 border-color: var(--danger);
                 color: var(--danger);
             }
+
+            /* ── Tab bar ── */
+            .tab-bar {
+                display: flex;
+                gap: 2px;
+                background: var(--bg-elevated);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                padding: 3px;
+                margin-bottom: var(--space-md);
+            }
+            .tab-btn {
+                flex: 1;
+                padding: 7px 12px;
+                border: none;
+                background: transparent;
+                color: var(--text-secondary);
+                font-size: var(--font-size-sm);
+                border-radius: calc(var(--radius-sm) - 2px);
+                cursor: pointer;
+                transition: background var(--transition), color var(--transition);
+                font-family: inherit;
+                white-space: nowrap;
+            }
+            .tab-btn.active {
+                background: var(--bg-surface);
+                color: var(--text-primary);
+                border: 1px solid var(--border);
+            }
+            .tab-btn:hover:not(.active) {
+                color: var(--text-primary);
+                background: rgba(255,255,255,0.04);
+            }
+
+            /* ── Prompt tab ── */
+            .prompt-textarea {
+                width: 100%;
+                min-height: 180px;
+                resize: vertical;
+                font-family: var(--font-mono);
+                font-size: var(--font-size-sm);
+                line-height: 1.6;
+                background: var(--bg-elevated);
+                color: var(--text-primary);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                padding: var(--space-sm);
+                box-sizing: border-box;
+                outline: none;
+                transition: border-color var(--transition);
+            }
+            .prompt-textarea:focus {
+                border-color: var(--accent);
+            }
+            .prompt-meta {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-top: 6px;
+            }
+            .prompt-char-count {
+                font-size: 11px;
+                color: var(--text-muted);
+                font-family: var(--font-mono);
+            }
+            .prompt-status {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                font-size: 11px;
+                padding: 3px 8px;
+                border-radius: 99px;
+            }
+            .prompt-status.active {
+                background: rgba(74, 222, 128, 0.12);
+                color: var(--success);
+                border: 1px solid rgba(74, 222, 128, 0.25);
+            }
+            .prompt-status.inactive {
+                background: var(--bg-elevated);
+                color: var(--text-muted);
+                border: 1px solid var(--border);
+            }
+            .prompt-actions {
+                display: flex;
+                gap: var(--space-sm);
+                margin-top: var(--space-sm);
+            }
+            .upload-btn {
+                flex: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                padding: 9px 12px;
+                border: 1px dashed var(--border);
+                border-radius: var(--radius-sm);
+                background: transparent;
+                color: var(--text-secondary);
+                font-size: var(--font-size-sm);
+                cursor: pointer;
+                transition: border-color var(--transition), color var(--transition);
+                font-family: inherit;
+            }
+            .upload-btn:hover {
+                border-color: var(--accent);
+                color: var(--text-primary);
+            }
+            .clear-prompt-btn {
+                padding: 9px 16px;
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                background: transparent;
+                color: var(--text-muted);
+                font-size: var(--font-size-sm);
+                cursor: pointer;
+                transition: border-color var(--transition), color var(--transition);
+                font-family: inherit;
+                white-space: nowrap;
+            }
+            .clear-prompt-btn:hover {
+                border-color: var(--danger);
+                color: var(--danger);
+            }
+            .prompt-hint {
+                font-size: 11px;
+                color: var(--text-muted);
+                line-height: 1.5;
+                margin-top: var(--space-sm);
+            }
+            .file-input-hidden {
+                display: none;
+            }
+            .save-indicator {
+                font-size: 11px;
+                color: var(--success);
+                opacity: 0;
+                transition: opacity 0.3s;
+            }
+            .save-indicator.visible {
+                opacity: 1;
+            }
         `,
     ];
 
@@ -195,6 +337,9 @@ export class CustomizeView extends LitElement {
         clearStatusType: { type: String },
         _remoteRunning: { type: Boolean, state: true },
         _remoteUrl: { type: String, state: true },
+        _activeTab: { type: String, state: true },
+        _promptSaved: { type: Boolean, state: true },
+        customPrompt: { type: String },
     };
 
     constructor() {
@@ -220,6 +365,8 @@ export class CustomizeView extends LitElement {
         this.theme = 'dark';
         this._remoteRunning = false;
         this._remoteUrl = null;
+        this._activeTab = 'settings';
+        this._promptSaved = false;
         this._loadFromStorage();
         this._checkRemoteStatus();
     }
@@ -403,6 +550,33 @@ export class CustomizeView extends LitElement {
     async handleCustomPromptInput(e) {
         this.customPrompt = e.target.value;
         await metaMaxPro.storage.updatePreference('customPrompt', this.customPrompt);
+        this._showSaved();
+    }
+
+    async handlePromptFileUpload(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        // Strip excess whitespace but keep paragraph breaks
+        this.customPrompt = text.trim().replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+        await metaMaxPro.storage.updatePreference('customPrompt', this.customPrompt);
+        this._showSaved();
+        // Reset input so the same file can be re-uploaded
+        e.target.value = '';
+        this.requestUpdate();
+    }
+
+    async handleClearPrompt() {
+        this.customPrompt = '';
+        await metaMaxPro.storage.updatePreference('customPrompt', '');
+        this._showSaved();
+        this.requestUpdate();
+    }
+
+    _showSaved() {
+        this._promptSaved = true;
+        this.requestUpdate();
+        setTimeout(() => { this._promptSaved = false; this.requestUpdate(); }, 2000);
     }
 
     async handleAudioModeSelect(e) {
@@ -781,17 +955,95 @@ export class CustomizeView extends LitElement {
         `;
     }
 
+    renderTabBar() {
+        return html`
+            <div class="tab-bar">
+                <button class="tab-btn ${this._activeTab === 'settings' ? 'active' : ''}"
+                    @click=${() => { this._activeTab = 'settings'; this.requestUpdate(); }}>
+                    Settings
+                </button>
+                <button class="tab-btn ${this._activeTab === 'prompt' ? 'active' : ''}"
+                    @click=${() => { this._activeTab = 'prompt'; this.requestUpdate(); }}>
+                    AI Prompt ${this.customPrompt?.trim() ? html`<span style="color:var(--success);margin-left:4px;">●</span>` : ''}
+                </button>
+            </div>
+        `;
+    }
+
+    renderPromptTab() {
+        const hasPrompt = !!this.customPrompt?.trim();
+        const charCount = this.customPrompt?.length || 0;
+        return html`
+            <section class="surface">
+                <div class="surface-title">Custom AI Instructions</div>
+                <div style="font-size:var(--font-size-xs);color:var(--text-muted);margin-bottom:var(--space-sm);line-height:1.5;">
+                    Write your own instructions for how the AI should respond — your role, the company, what to focus on,
+                    tone preferences, or paste your resume. Leave empty to use ShadowAI's built-in prompts.
+                </div>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <span class="prompt-status ${hasPrompt ? 'active' : 'inactive'}">
+                        ${hasPrompt ? '● Active — overrides default prompts' : '○ Empty — using built-in prompts'}
+                    </span>
+                    <span class="save-indicator ${this._promptSaved ? 'visible' : ''}">Saved</span>
+                </div>
+
+                <textarea
+                    class="prompt-textarea"
+                    placeholder="Examples:
+• I am interviewing for a Senior Backend Engineer role at Stripe. Focus on distributed systems and reliability. When explaining code, prefer Python.
+• My name is Alex. I have 6 years at Google on search infra. Keep answers concise — 2 paragraphs max.
+• Paste your resume here for context-aware answers..."
+                    .value=${this.customPrompt || ''}
+                    @input=${this.handleCustomPromptInput}
+                ></textarea>
+
+                <div class="prompt-meta">
+                    <span class="prompt-char-count">${charCount} characters</span>
+                </div>
+
+                <div class="prompt-actions">
+                    <button class="upload-btn" @click=${() => this.shadowRoot.querySelector('#prompt-file-input').click()}>
+                        ↑ Upload file (.txt, .md, .pdf text)
+                    </button>
+                    ${hasPrompt ? html`
+                        <button class="clear-prompt-btn" @click=${this.handleClearPrompt}>Clear</button>
+                    ` : ''}
+                </div>
+
+                <input
+                    id="prompt-file-input"
+                    class="file-input-hidden"
+                    type="file"
+                    accept=".txt,.md,.text"
+                    @change=${this.handlePromptFileUpload}
+                />
+
+                <div class="prompt-hint">
+                    Your instructions are merged with ShadowAI's question-type prompts (coding, system design, behavioral, etc.)
+                    and sent with every API call. They apply to both Claude and Groq. Changes take effect on the next question.
+                </div>
+            </section>
+        `;
+    }
+
     render() {
         return html`
             <div class="unified-page">
                 <div class="unified-wrap">
                     <div class="page-title">Settings</div>
-                    ${this.renderAudioSection()}
-                    ${this.renderLanguageSection()}
-                    ${this.renderAppearanceSection()}
-                    ${this.renderKeyboardSection()}
-                    ${this.renderRemoteControlSection()}
-                    ${this.renderPrivacySection()}
+                    ${this.renderTabBar()}
+                    ${this._activeTab === 'prompt'
+                        ? this.renderPromptTab()
+                        : html`
+                            ${this.renderAudioSection()}
+                            ${this.renderLanguageSection()}
+                            ${this.renderAppearanceSection()}
+                            ${this.renderKeyboardSection()}
+                            ${this.renderRemoteControlSection()}
+                            ${this.renderPrivacySection()}
+                        `
+                    }
                 </div>
             </div>
         `;

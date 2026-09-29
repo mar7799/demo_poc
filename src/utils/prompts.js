@@ -454,14 +454,17 @@ Provide direct exam answers in **markdown format**. Include the question text, t
 };
 
 function buildSystemPrompt(promptParts, customPrompt = '', googleSearchEnabled = true) {
-    const sections = [promptParts.intro, '\n\n', promptParts.formatRequirements];
+    const userBlock = customPrompt?.trim()
+        ? `USER INSTRUCTIONS (highest priority — follow these precisely):\n=====\n${customPrompt.trim()}\n=====\n\n`
+        : '';
 
-    // Only add search usage section if Google Search is enabled
+    const sections = [userBlock, promptParts.intro, '\n\n', promptParts.formatRequirements];
+
     if (googleSearchEnabled) {
         sections.push('\n\n', promptParts.searchUsage);
     }
 
-    sections.push('\n\n', promptParts.content, '\n\nUser-provided context\n-----\n', customPrompt, '\n-----\n\n', promptParts.outputInstructions);
+    sections.push('\n\n', promptParts.content, '\n\n', promptParts.outputInstructions);
 
     return sections.join('');
 }
@@ -623,11 +626,14 @@ End with a strong opinion or lesson from experience — never a summary of what 
 
 function buildDynamicPrompt(questionType, customPrompt = '') {
     const typeInstructions = DYNAMIC_TYPE_PROMPTS[questionType] || DYNAMIC_TYPE_PROMPTS.technical;
-    const parts = [DYNAMIC_BASE, '\n\n', typeInstructions, '\n\n', DYNAMIC_FORMAT];
-    if (customPrompt && customPrompt.trim()) {
-        parts.push('\n\nUser-provided context\n-----\n', customPrompt.trim(), '\n-----');
-    }
-    return parts.join('');
+
+    // User instructions lead — placed before type-specific rules so they steer tone,
+    // persona, and focus. The type rules handle structure and format after.
+    const userBlock = customPrompt?.trim()
+        ? `USER INSTRUCTIONS (highest priority — follow these precisely and let them shape every answer):\n=====\n${customPrompt.trim()}\n=====\n\n`
+        : '';
+
+    return [userBlock, DYNAMIC_BASE, '\n\n', typeInstructions, '\n\n', DYNAMIC_FORMAT].join('');
 }
 
 module.exports = {
