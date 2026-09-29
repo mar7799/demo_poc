@@ -634,7 +634,7 @@ End with a strong opinion or lesson from experience — never a summary of what 
 const TYPE_CORE_ESSENTIALS = {
     coding: `This is a coding question. Ensure the answer includes: complete working code (never truncate or use placeholders), the algorithm name and time/space complexity, all edge cases handled, and a brief trace of one example. If this is the very first turn, ask clarifying questions about constraints and edge cases before writing code.`,
 
-    system_design: `This is a system design question. Ensure the answer covers: clarifying questions on scale and requirements if this is the first turn, key components and their responsibilities, data flow between components, and at least one trade-off discussion. Mermaid diagrams are supported — use them when architecture needs to be visualised.`,
+    system_design: `This is a system design question. Follow the user's staged approach exactly — never jump ahead. If this is the first turn, ask clarifying questions before any design is presented. Cover at minimum: key components and their responsibilities, data flow between components, and at least one trade-off discussion. Match the format and depth the user's instructions specify — verbal/conversational if they ask for it.`,
 
     behavioral: `This is a behavioral question. Ensure the answer draws from real experience: a specific situation, the concrete action taken, and the measurable result. Ground it in a real company, project, or number wherever possible.`,
 

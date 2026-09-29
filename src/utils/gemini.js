@@ -614,16 +614,14 @@ async function sendToGroq(transcription) {
         groqConversationHistory = groqConversationHistory.slice(-20);
     }
 
-    // For coding/technical, strip mermaid diagrams from history and cap total size
-    let groqHistoryForRequest = groqConversationHistory.slice();
-    if (questionType === 'coding' || questionType === 'technical') {
-        groqHistoryForRequest = groqHistoryForRequest.map(m => {
-            if (m.role === 'assistant' && m.content.includes('```mermaid')) {
-                return { ...m, content: m.content.replace(/```mermaid[\s\S]*?```/g, '[diagram omitted]') };
-            }
-            return m;
-        });
-    }
+    // Strip mermaid diagrams from all history — large diagrams eat token budget for any follow-up
+    const hasCustomInstructionsGroq = (currentCustomPrompt || '').includes('CUSTOM INSTRUCTIONS (highest priority');
+    let groqHistoryForRequest = groqConversationHistory.slice().map(m => {
+        if (m.role === 'assistant' && m.content.includes('```mermaid')) {
+            return { ...m, content: m.content.replace(/```mermaid[\s\S]*?```/g, '[diagram omitted]') };
+        }
+        return m;
+    });
     const GROQ_HISTORY_CHAR_LIMIT = 20000;
     let groqHistoryChars = groqHistoryForRequest.reduce((s, m) => s + m.content.length, 0);
     while (groqHistoryForRequest.length > 2 && groqHistoryChars > GROQ_HISTORY_CHAR_LIMIT) {
@@ -648,7 +646,7 @@ async function sendToGroq(transcription) {
                 ],
                 stream: true,
                 temperature: 0.7,
-                max_tokens: ['system_design', 'coding'].includes(questionType) ? 4096 : 700,
+                max_tokens: questionType === 'coding' ? 8000 : questionType === 'system_design' ? (hasCustomInstructionsGroq ? 1200 : 4096) : 700,
                 // reasoning_effort only supported by Qwen thinking models
                 ...(modelToUse.includes('qwen') ? { reasoning_effort: 'none' } : {}),
             })
@@ -682,7 +680,7 @@ async function sendToGroq(transcription) {
                         messages: [{ role: 'system', content: activeSystemPrompt }, ...groqHistoryForRequest],
                         stream: true,
                         temperature: 0.7,
-                        max_tokens: ['system_design', 'coding'].includes(questionType) ? 4096 : 700,
+                        max_tokens: questionType === 'coding' ? 8000 : questionType === 'system_design' ? (hasCustomInstructionsGroq ? 1200 : 4096) : 700,
                         ...(modelToUse.includes('qwen') ? { reasoning_effort: 'none' } : {}),
                     }),
                 });
@@ -753,7 +751,7 @@ async function sendToGroq(transcription) {
             // ── Self-healing audit ──────────────────────────────────────────
             const truncationReason = checkTruncation(cleanedResponse);
             const classificationWarning = validateClassification(questionType, cleanedResponse);
-            auditRecord({ provider: 'groq', questionType, maxTokens: ['system_design', 'coding'].includes(questionType) ? 4096 : 700, historyChars: groqHistoryChars, responseChars: cleanedResponse.length, truncationReason, classificationWarning });
+            auditRecord({ provider: 'groq', questionType, maxTokens: questionType === 'coding' ? 8000 : questionType === 'system_design' ? (hasCustomInstructionsGroq ? 1200 : 4096) : 700, historyChars: groqHistoryChars, responseChars: cleanedResponse.length, truncationReason, classificationWarning });
 
             const finalGroqText = fixFormat(cleanedResponse);
             if (finalGroqText !== cleanedResponse) {
@@ -957,18 +955,14 @@ async function sendToAnthropic(transcription) {
         groqConversationHistory = groqConversationHistory.slice(-20);
     }
 
-    // Build messages array (Anthropic format: no system in messages array)
-    // For coding/technical questions, strip mermaid diagrams from history — they can be
-    // thousands of chars and silently eat the token budget, causing truncated code output.
-    let historyForRequest = groqConversationHistory.slice();
-    if (questionType === 'coding' || questionType === 'technical') {
-        historyForRequest = historyForRequest.map(m => {
-            if (m.role === 'assistant' && m.content.includes('```mermaid')) {
-                return { ...m, content: m.content.replace(/```mermaid[\s\S]*?```/g, '[diagram omitted]') };
-            }
-            return m;
-        });
-    }
+    // Strip mermaid diagrams from all history — large diagrams eat token budget for any follow-up
+    const hasCustomInstructions = (currentCustomPrompt || '').includes('CUSTOM INSTRUCTIONS (highest priority');
+    let historyForRequest = groqConversationHistory.slice().map(m => {
+        if (m.role === 'assistant' && m.content.includes('```mermaid')) {
+            return { ...m, content: m.content.replace(/```mermaid[\s\S]*?```/g, '[diagram omitted]') };
+        }
+        return m;
+    });
     // Cap total history to ~25000 chars to leave the model room to generate full responses
     const HISTORY_CHAR_LIMIT = 25000;
     let totalHistoryChars = historyForRequest.reduce((s, m) => s + m.content.length, 0);
@@ -981,7 +975,8 @@ async function sendToAnthropic(transcription) {
         content: m.content,
     }));
 
-    // Dynamic token limit — smaller for fast conversational answers, full budget for code/diagrams
+    // Dynamic token limit — smaller for conversational answers, full budget for code/diagrams.
+    // When custom instructions are set for system_design, responses are staged/verbal — 1200 is plenty.
     const maxTokensByType = {
         technical: 500,
         behavioral: 800,
@@ -990,7 +985,7 @@ async function sendToAnthropic(transcription) {
         resume: 800,
         situational: 600,
         ambiguous: 500,
-        system_design: 4096,
+        system_design: hasCustomInstructions ? 1200 : 4096,
         coding: 8000,
     };
     const maxTokens = maxTokensByType[questionType] || 600;
@@ -1074,7 +1069,7 @@ async function _streamAndHeal({ anthropicApiKey, activeSystemPrompt, messages, m
         console.log('[Anthropic] Response completed');
 
         if (!fullText) {
-            sendToRenderer('update-status', 'Listening...');
+            sendToRenderer('update-status', 'No response received — please try again');
             return;
         }
 
